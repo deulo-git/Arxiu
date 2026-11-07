@@ -12,7 +12,7 @@
     "dev:api": "node --disable-warning=ExperimentalWarning --watch-path=server --watch-path=shared server/index.ts",
     "dev:web": "vite",
     "build": "vite build",
-    "start": "NODE_ENV=production node --disable-warning=ExperimentalWarning server/index.ts",
+    "start": "node --disable-warning=ExperimentalWarning server/index.ts --production",
     "user:create": "node --disable-warning=ExperimentalWarning server/cli/user.ts create",
     "user:password": "node --disable-warning=ExperimentalWarning server/cli/user.ts password",
     "user:disable-2fa": "node --disable-warning=ExperimentalWarning server/cli/user.ts disable-2fa",

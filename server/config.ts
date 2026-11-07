@@ -4,7 +4,7 @@ import path from 'node:path';
 if (existsSync('.env')) process.loadEnvFile('.env');
 
 const env = process.env;
-const isProd = env.NODE_ENV === 'production';
+const isProd = env.NODE_ENV === 'production' || process.argv.includes('--production');
 
 function num(value: string | undefined, fallback: number): number {
   const n = Number(value);
