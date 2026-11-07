@@ -127,6 +127,11 @@ export async function buildApp(opts: { config: Config; db: DB; mailer?: Mailer; 
     return reply.code(500).send({ error: "S'ha produït un error inesperat." });
   });
 
+  app.get('/api/health', async () => {
+    db.prepare('SELECT 1').get();
+    return { ok: true };
+  });
+
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(accountRoutes, { prefix: '/api/account' });
   await app.register(libraryRoutes);

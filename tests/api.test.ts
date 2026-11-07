@@ -74,6 +74,13 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+describe('salut', () => {
+  it('respon a /api/health sense sessió', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/health' });
+    expect(res.json()).toEqual({ ok: true });
+  });
+});
+
 describe('compte i sessió', () => {
   it('crea el compte amb el token de configuració només una vegada', async () => {
     expect((await call('GET', '/api/auth/status')).json()).toMatchObject({ configured: false, stage: null });

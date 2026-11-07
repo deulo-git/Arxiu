@@ -1,0 +1,25 @@
+# Cada bloc és una web. Caddy demana i renova els certificats HTTPS sol.
+{
+	email {$ACME_EMAIL}
+}
+
+# Arxiu
+{$ARXIU_DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 60MB
+	}
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy arxiu:3000
+}
+
+# Exemple: una web estàtica (HTML) desada a deploy/sites/web
+# www.elteudomini.cat {
+# 	root * /srv/web
+# 	file_server
+# }
+
+# Exemple: una altra aplicació en Docker (servei «blog» del compose.yaml)
+# blog.elteudomini.cat {
+# 	reverse_proxy blog:2368
+# }

@@ -1,0 +1,51 @@
+# Servidor amb diverses webs: Caddy rep tot el trànsit (ports 80 i 443),
+# obté els certificats HTTPS automàticament i el reparteix a cada web.
+#
+#   cd deploy && docker compose up -d --build
+#
+# Per afegir una altra web: afegeix-hi un servei (vegeu l'exemple del final)
+# i un bloc nou al Caddyfile. Cap web no publica ports pròpia: només Caddy.
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/srv:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - arxiu
+
+  arxiu:
+    build: ..
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      PORT: "3000"
+    volumes:
+      - arxiu-data:/data
+      - ./backups:/backups
+
+  # Exemple d'una altra web (una aplicació en Docker). Descomenta-ho i
+  # afegeix el bloc corresponent al Caddyfile.
+  # blog:
+  #   image: ghost:5
+  #   restart: unless-stopped
+  #   environment:
+  #     url: https://blog.elteudomini.cat
+  #   volumes:
+  #     - blog-data:/var/lib/ghost/content
+
+volumes:
+  caddy-data:
+  caddy-config:
+  arxiu-data:
+  # blog-data:

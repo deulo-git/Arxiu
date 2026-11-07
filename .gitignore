@@ -3,3 +3,5 @@ dist/
 data/
 .env
 *.log
+deploy/.env
+deploy/backups/

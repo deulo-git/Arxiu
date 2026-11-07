@@ -50,17 +50,7 @@ npm run build
 PUBLIC_URL=https://arxiu.exemple.cat npm start
 ```
 
-O amb Docker:
-
-```bash
-docker build -t arxiu .
-```
-
-```bash
-docker run -d -p 3000:3000 -v arxiu-data:/data -e PUBLIC_URL=https://arxiu.exemple.cat arxiu
-```
-
-Posa-hi un proxy invers amb HTTPS (Caddy, nginx…) al davant: amb `PUBLIC_URL` en `https://` la galeta de sessió es marca com a `Secure`. Totes les opcions són a [`.env.example`](.env.example).
+Per publicar-lo a internet en un VPS (Hostinger, OVHcloud, Hetzner…) amb HTTPS, còpies de seguretat diàries i espai per a més webs, segueix la guia [**deploy/README.md**](deploy/README.md).
 
 ### Ordres útils al servidor
 
@@ -69,6 +59,7 @@ Posa-hi un proxy invers amb HTTPS (Caddy, nginx…) al davant: amb `PUBLIC_URL` 
 | `npm run user:create` | Crea el compte (si encara no n'hi ha) |
 | `npm run user:password` | Canvia la contrasenya i tanca totes les sessions |
 | `npm run user:disable-2fa` | Desactiva la verificació en dos passos (si has perdut el mòbil) |
+| `npm run backup` | Còpia de la base de dades i els documents a `backups/` |
 | `npm test` | Proves de l'API |
 | `npm run typecheck` | Comprovació de tipus |
 
