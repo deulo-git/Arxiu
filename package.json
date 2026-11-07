@@ -1,0 +1,50 @@
+{
+  "name": "arxiu",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Arxiu personal per publicar i gestionar documents: cartes, nòmines, factures i contractes.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c yellow,cyan \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "node --disable-warning=ExperimentalWarning --watch-path=server --watch-path=shared server/index.ts",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "NODE_ENV=production node --disable-warning=ExperimentalWarning server/index.ts",
+    "user:create": "node --disable-warning=ExperimentalWarning server/cli/user.ts create",
+    "user:password": "node --disable-warning=ExperimentalWarning server/cli/user.ts password",
+    "user:disable-2fa": "node --disable-warning=ExperimentalWarning server/cli/user.ts disable-2fa",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/multipart": "^10.1.8",
+    "@fastify/rate-limit": "^11.2.2",
+    "@fastify/static": "^10.1.10",
+    "fastify": "^5.12.8",
+    "nodemailer": "^10.3.1",
+    "qrcode": "^1.5.4",
+    "yazl": "^3.3.1"
+  },
+  "devDependencies": {
+    "@fontsource/poppins": "^5.3.0",
+    "@types/node": "^22.20.5",
+    "@types/nodemailer": "^8.0.2",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/yazl": "^3.3.1",
+    "@vitejs/plugin-react": "^6.2.1",
+    "concurrently": "^10.0.6",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router": "^7.18.5",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}
