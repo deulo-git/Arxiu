@@ -8,7 +8,9 @@ Internet ──443──▶ Caddy ──▶ arxiu (Node.js)          dades: volu
                         └─▶ blog (una altra app)
 ```
 
-Temps aproximat: 30 minuts. Les ordres marcades «al teu PC» s'escriuen al PowerShell de Windows. Totes les altres, al servidor.
+Temps aproximat: 30 minuts. Si fas servir Claude Code al teu PC, obert a la carpeta `Arxiu`, ell et pot guiar i executar aquests passos (amb la skill `servidor`).
+
+ Les ordres marcades «al teu PC» s'escriuen al PowerShell de Windows. Totes les altres, al servidor.
 
 ## 1. Contracta el VPS
 
@@ -16,19 +18,38 @@ Temps aproximat: 30 minuts. Les ordres marcades «al teu PC» s'escriuen al Powe
 - Apunta't la **IP pública** (p. ex. `1.2.3.4`) i la contrasenya de `root` que t'hagin donat.
 - Si el proveïdor ofereix còpies de seguretat automàtiques del servidor, activa-les.
 
-## 2. Crea una clau SSH (al teu PC)
+## 2. Clau SSH amb 1Password (al teu PC)
+
+1Password genera la clau i fa d'«agent SSH». La clau privada no surt mai de 1Password, i cada connexió al servidor et demana permís amb Windows Hello.
+
+1. A 1Password, ves a *Configuració → Desenvolupador* i activa **Utilitzar l'agent SSH**.
+2. A Windows, obre *Serveis* i busca **OpenSSH Authentication Agent**: posa'l en «Aturat» i «Desactivat». Si estava en marxa, 1Password t'ho avisa.
+3. A 1Password, crea un element nou: *Nou element → Clau SSH → Generar una nova clau*. Tria el tipus **Ed25519** i posa-li el nom «Arxiu VPS».
+4. Copia'n la **clau pública** (`ssh-ed25519 AAAA…`). L'enganxaràs a Hostinger en crear el VPS (*Claus SSH*).
+5. Comprova que Windows la veu (ha de sortir «Arxiu VPS»):
+   ```bash
+   ssh-add -l
+   ```
+
+Quan tinguis la IP del servidor, crea l'àlies `arxiu` perquè n'hi hagi prou d'escriure `ssh arxiu`. Obre el fitxer de configuració:
 
 ```bash
-ssh-keygen -t ed25519
+notepad $env:USERPROFILE\.ssh\config
 ```
 
-Prem Enter a totes les preguntes (o posa-hi una contrasenya). Mostra la clau pública:
+Hi enganxes aquest bloc (amb la teva IP i el teu usuari), el deses i el tanques:
+
+```
+Host arxiu
+  HostName 1.2.3.4
+  User deulo
+```
+
+Fins al pas 3 encara no existeix l'usuari `deulo`, així que la primera connexió es fa com a `root`:
 
 ```bash
-type $env:USERPROFILE\.ssh\id_ed25519.pub
+ssh root@1.2.3.4
 ```
-
-Copia-la. A Hostinger es pot enganxar a *VPS → Configuració → Claus SSH*. Si no, la posarem al pas 3.
 
 ## 3. Primera connexió i seguretat bàsica
 
@@ -48,7 +69,7 @@ adduser deulo
 usermod -aG sudo deulo
 ```
 
-Copia-li la clau SSH. Si no la vas posar al panell, primer enganxa-la a `/root/.ssh/authorized_keys` amb `nano`.
+Copia-li la clau SSH. Si no la vas posar al panell de Hostinger, primer enganxa la clau pública a `/root/.ssh/authorized_keys` amb `nano`.
 
 ```bash
 rsync --archive --chown=deulo:deulo /root/.ssh /home/deulo
@@ -68,7 +89,7 @@ ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw --force enable
 dpkg-reconfigure -plow unattended-upgrades
 ```
 
-Desactiva l'entrada amb contrasenya i com a `root` (només amb la teva clau). **Abans**, obre una altra finestra i comprova que `ssh deulo@1.2.3.4` funciona.
+Desactiva l'entrada amb contrasenya i com a `root` (només amb la teva clau). **Abans**, obre una altra finestra i comprova que `ssh arxiu` funciona.
 
 ```bash
 printf 'PasswordAuthentication no\nPermitRootLogin no\n' > /etc/ssh/sshd_config.d/99-arxiu.conf && systemctl restart ssh
@@ -77,7 +98,7 @@ printf 'PasswordAuthentication no\nPermitRootLogin no\n' > /etc/ssh/sshd_config.
 A partir d'ara, entra sempre amb:
 
 ```bash
-ssh deulo@1.2.3.4
+ssh arxiu
 ```
 
 ## 4. Instal·la Docker
@@ -160,7 +181,7 @@ Afegeix aquesta línia (canvia `deulo` pel teu usuari):
 Les còpies es guarden a `deploy/backups`, una per dia, durant 14 dies. Són al mateix servidor: per tenir-ne també fora, descarrega'n una de tant en tant al teu PC:
 
 ```bash
-scp deulo@1.2.3.4:Arxiu/deploy/backups/arxiu-*.tar.gz .
+scp "arxiu:Arxiu/deploy/backups/arxiu-*.tar.gz" .
 ```
 
 També pots fer servir el botó *Exporta-ho tot* de l'aplicació.
