@@ -17,6 +17,10 @@ if not exist node_modules (
   call npm install || (pause & exit /b 1)
 )
 
+rem Limit de mida per arxiu (MB). Canvia'l aqui si cal; la web es recompila amb "reconstruir".
+if "%MAX_UPLOAD_MB%"=="" set MAX_UPLOAD_MB=500
+set VITE_MAX_UPLOAD_MB=%MAX_UPLOAD_MB%
+
 if /i "%~1"=="reconstruir" if exist dist rmdir /s /q dist
 if not exist dist\index.html (
   echo Compilant la web...

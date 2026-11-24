@@ -42,7 +42,7 @@ Sense `SMTP_URL`, els correus (recuperació de contrasenya, canvi de correu) no 
 
 ### En local (Windows), mentre no hi ha servidor
 
-Fes doble clic a `local/arxiu-local.bat`: instal·la les dependències, compila la web, arrenca l'Arxiu a `http://localhost:3000` (només accessible des del teu ordinador) i obre el navegador. Les dades queden a la carpeta `data/`. Després d'actualitzar el codi, executa `local\arxiu-local.bat reconstruir`.
+Fes doble clic a `local/arxiu-local.bat`: instal·la les dependències, compila la web, arrenca l'Arxiu a `http://localhost:3000` (només accessible des del teu ordinador) i obre el navegador. Les dades queden a la carpeta `data/`. El límit per arxiu en local és de 500 MB (variable `MAX_UPLOAD_MB` a l'`.bat`); si el canvies, executa `reconstruir`. Després d'actualitzar el codi, executa `local\arxiu-local.bat reconstruir`.
 
 **Quan tinguis el servidor**: tanca l'Arxiu local, fes una còpia (`npm run backup` o l'exportació `.zip` als ajustos) i restaura-la al VPS seguint [deploy/README.md](deploy/README.md) (secció de còpies). També pots copiar la carpeta `data/` sencera al volum del servidor.
 

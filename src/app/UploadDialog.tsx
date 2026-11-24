@@ -8,7 +8,8 @@ import { makeThumbnail } from '../lib/pdf.ts';
 import { useLibrary, useToast } from '../state.tsx';
 
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.heic,.heif,.webp,application/pdf,image/*';
-const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_MB = Number(import.meta.env.VITE_MAX_UPLOAD_MB) || 50;
+const MAX_BYTES = MAX_MB * 1024 * 1024;
 
 interface QueueItem {
   key: string;
@@ -53,7 +54,7 @@ export function UploadDialog({ onClose, defaultCategory }: { onClose: () => void
       file,
       category: defaultCategory !== 'all' && ids.includes(defaultCategory) ? defaultCategory : guessCategory(file.name, ids),
       date: isoDate(),
-      error: file.size > MAX_BYTES ? 'Supera el límit de 50 MB' : undefined,
+      error: file.size > MAX_BYTES ? `Supera el límit de ${MAX_MB} MB` : undefined,
     }));
     if (arr.length) setQueue((q) => [...q, ...arr]);
   }
@@ -128,7 +129,7 @@ export function UploadDialog({ onClose, defaultCategory }: { onClose: () => void
           </div>
           <strong>Arrossega els arxius aquí</strong>
           <span className="meta" style={{ fontSize: 13 }}>
-            PDF, JPG, PNG o HEIC · fins a 50 MB per arxiu
+            PDF, JPG, PNG o HEIC · fins a {MAX_MB} MB per arxiu
           </span>
           <label className="btn btn-primary">
             <input className="sr" type="file" multiple accept={ACCEPT} onChange={(e) => (add(e.target.files), (e.target.value = ''))} />
