@@ -71,6 +71,22 @@ export function Shell() {
   const { filters } = useFilters();
   const [upload, setUpload] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [rail, setRail] = useState(() => {
+    try {
+      return localStorage.getItem('arxiu.sidebar') === 'rail';
+    } catch {
+      return false;
+    }
+  });
+  const toggleRail = () =>
+    setRail((r) => {
+      try {
+        localStorage.setItem('arxiu.sidebar', r ? 'open' : 'rail');
+      } catch {
+        /* sense emmagatzematge */
+      }
+      return !r;
+    });
   const [catFold, toggleCat] = useCollapsed('categories');
   const [peopleFold, togglePeople] = useCollapsed('people');
   const [tagFold, toggleTag] = useCollapsed('tags');
@@ -131,11 +147,24 @@ export function Shell() {
 
   return (
     <div className="shell">
-      <nav className="sidebar" aria-label="Navegació principal">
+      <nav className={`sidebar${rail ? ' rail' : ''}`} aria-label="Navegació principal">
+        <div className="sb-top">
         <Link className="brand" to="/" aria-label="Arxiu: ves a l'inici" style={{ padding: '0 8px', gap: 10, color: 'inherit', textDecoration: 'none' }}>
           <BrandMark />
           <span>Arxiu</span>
         </Link>
+        <button
+          className="icon-btn sb-toggle"
+          style={{ width: 36, height: 36 }}
+          aria-label={rail ? 'Expandeix el menú' : 'Contreu el menú'}
+          aria-expanded={!rail}
+          title={rail ? 'Expandeix el menú' : 'Contreu el menú'}
+          onClick={toggleRail}
+        >
+          <Icon name={rail ? 'next' : 'back'} strokeWidth={2} />
+        </button>
+        </div>
+        <div className="sb-body">
         <button className="btn btn-primary btn-block" onClick={() => setUpload(true)}>
           <Icon name="upload" strokeWidth={2} />
           Puja arxius
@@ -214,15 +243,16 @@ export function Shell() {
             ))}
           </div>
         )}
+        </div>
         <div className="sidebar-foot">
-          <div className="meta" style={{ padding: '0 12px 10px' }}>
+          <div className="meta sb-body-only" style={{ padding: '0 12px 10px' }}>
             {formatSize(usedBytes)} utilitzats
           </div>
-          <Link className={`nav${inSettings ? ' on' : ''}`} to="/ajustos">
+          <Link className={`nav${inSettings ? ' on' : ''}`} to="/ajustos" aria-label="Configuració" title="Configuració">
             <Icon name="gear" />
-            Configuració
+            <span className="nav-label">Configuració</span>
           </Link>
-          <button className="nav" onClick={logout}>
+          <button className="nav sb-body-only" onClick={logout}>
             <Icon name="logout" />
             Tanca la sessió
           </button>

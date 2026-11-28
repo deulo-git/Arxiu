@@ -522,3 +522,15 @@ button, a, .chip, .nav, .tab { touch-action: manipulation; }
 .fold-title svg { width: 16px; height: 16px; }
 .nav-heading span { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted); }
 a.brand:hover { color: inherit; }
+
+/* Menú lateral contret: només queden el logo, el botó d'expandir i la configuració. */
+.sb-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.sb-body { display: flex; flex-direction: column; gap: 20px; }
+.sidebar { transition: width 0.15s; }
+.sidebar.rail { width: 68px; padding: 24px 10px; align-items: center; }
+.sidebar.rail .sb-top { flex-direction: column; gap: 12px; }
+.sidebar.rail .brand { padding: 0 !important; }
+.sidebar.rail .brand span:not(.brand-mark) { display: none; }
+.sidebar.rail .sb-body, .sidebar.rail .sb-body-only, .sidebar.rail .nav-label { display: none; }
+.sidebar.rail .sidebar-foot { align-items: center; border-top: 0; }
+.sidebar.rail .sidebar-foot .nav { width: 44px; padding: 0; justify-content: center; }
