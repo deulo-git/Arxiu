@@ -5,7 +5,7 @@ Arxiu personal d'un sol usuari per guardar, ordenar i compartir documents. Tota 
 ## Estructura
 
 - `server/` — API en Node.js 22 (TypeScript executat directament, sense compilar) amb Fastify i `node:sqlite`.
-  - `app.ts` (configuració, seguretat, `/api/health`), `routes/` (auth, account, library, organize: etiquetes, persones i preferències), `auth/` (scrypt, TOTP, sessions), `files/` (emmagatzematge i detecció de tipus), `cli/` (`user.ts`, `backup.ts`).
+  - `app.ts` (configuració, seguretat, `/api/health`), `routes/` (auth, account, library, organize: etiquetes, persones i preferències), `auth/` (scrypt, TOTP, sessions), `files/` (emmagatzematge i detecció de tipus), `cli/` (`user.ts`, `backup.ts`, `import.ts`: importació massiva per l'API).
 - `shared/` — codi compartit entre servidor i web (regles de contrasenya, categories, paleta de colors, preferències).
 - `src/` — web en React 19 + React Router + Vite. Estils a `src/styles.css` amb els tokens del sistema de disseny «Arxiu» (clar i fosc).
 - `tests/` — proves de l'API amb Vitest (`app.inject`).
@@ -22,4 +22,5 @@ Arxiu personal d'un sol usuari per guardar, ordenar i compartir documents. Tota 
 
 - Imports del servidor amb extensió `.ts` i només sintaxi esborrable (sense `enum` ni propietats als constructors).
 - Mai no posis secrets al repositori. `deploy/.env` (servidor) i `.env` (local) no es pugen mai.
+- Per importar una carpeta de documents, segueix la skill `importar` (`.claude/skills/importar/SKILL.md`).
 - Per gestionar el servidor de producció, segueix la skill `servidor` (`.claude/skills/servidor/SKILL.md`).

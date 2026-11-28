@@ -16,6 +16,9 @@
     "user:create": "node --disable-warning=ExperimentalWarning server/cli/user.ts create",
     "user:password": "node --disable-warning=ExperimentalWarning server/cli/user.ts password",
     "user:disable-2fa": "node --disable-warning=ExperimentalWarning server/cli/user.ts disable-2fa",
+    "import:scan": "node --disable-warning=ExperimentalWarning server/cli/import.ts scan",
+    "import:taxonomy": "node --disable-warning=ExperimentalWarning server/cli/import.ts taxonomy",
+    "import:apply": "node --disable-warning=ExperimentalWarning server/cli/import.ts apply",
     "backup": "node --disable-warning=ExperimentalWarning server/cli/backup.ts backups 14",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run"

@@ -6,3 +6,4 @@ data/
 deploy/.env
 deploy/backups/
 backups/
+importar/

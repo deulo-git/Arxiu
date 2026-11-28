@@ -50,6 +50,10 @@ Fes doble clic a `local/arxiu-local.bat`: instal·la les dependències, compila 
 
 **Quan tinguis el servidor**: tanca l'Arxiu local, fes una còpia (`npm run backup` o l'exportació `.zip` als ajustos) i restaura-la al VPS seguint [deploy/README.md](deploy/README.md) (secció de còpies). També pots copiar la carpeta `data/` sencera al volum del servidor.
 
+### Importar una carpeta sencera
+
+Amb l'Arxiu en marxa, `npm run import:scan -- "C:\ruta\carpeta"` fa la llista dels documents i `npm run import:apply -- importar/pla.json` els puja segons un pla (nom, categoria, data, etiquetes i persones de cada un; sense `--yes` només mostra el resum). Funciona igual contra el servidor del VPS amb `ARXIU_URL`. Hi ha una skill, `importar`, perquè Claude Code llegeixi els PDF i prepari el pla.
+
 ### Producció
 
 ```bash
