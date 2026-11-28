@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, setUnauthorizedHandler, type Category, type FileItem, type Status, type User } from './api.ts';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { api, setUnauthorizedHandler, type Category, type FileItem, type Person, type Prefs, type Status, type Tag, type User } from './api.ts';
+import { DEFAULT_PREFS } from '../shared/prefs.ts';
+import { setDefaultSort } from './lib/filters.ts';
 import { Icon } from './components/Icon.tsx';
 
 /* ---------- Avisos ---------- */
@@ -88,8 +90,15 @@ interface LibraryCtx {
   addFiles: (f: FileItem[]) => void;
   replaceFile: (f: FileItem) => void;
   removeFile: (id: string) => void;
-  setCategories: (c: Category[]) => void;
+  setCategories: Dispatch<SetStateAction<Category[]>>;
   catName: (id: string) => string;
+  catColor: (id: string) => string;
+  tags: Tag[];
+  people: Person[];
+  setTags: Dispatch<SetStateAction<Tag[]>>;
+  setPeople: Dispatch<SetStateAction<Person[]>>;
+  prefs: Prefs;
+  updatePrefs: (patch: Partial<Prefs>) => Promise<void>;
 }
 
 const LibraryContext = createContext<LibraryCtx | null>(null);
@@ -98,14 +107,41 @@ export const useLibrary = () => useContext(LibraryContext)!;
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [loaded, setLoaded] = useState(false);
   const toast = useToast();
 
+  // El tema i l'ordre per defecte s'apliquen a tota l'aplicació.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (prefs.theme === 'auto') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', prefs.theme);
+    setDefaultSort(prefs.sort);
+  }, [prefs.theme, prefs.sort]);
+
+  const updatePrefs = useCallback(
+    async (patch: Partial<Prefs>) => {
+      setPrefs((p) => ({ ...p, ...patch }));
+      try {
+        const res = await api.savePrefs(patch);
+        setPrefs(res.prefs);
+      } catch (err) {
+        toast((err as Error).message, true);
+      }
+    },
+    [toast],
+  );
+
   const reload = useCallback(async () => {
     try {
-      const [f, c] = await Promise.all([api.files(), api.categories()]);
+      const [f, c, t, p, pr] = await Promise.all([api.files(), api.categories(), api.tags(), api.people(), api.prefs()]);
       setFiles(f.files);
       setCategories(c.categories);
+      setTags(t.items);
+      setPeople(p.items);
+      setPrefs(pr.prefs);
       setLoaded(true);
     } catch (err) {
       toast((err as Error).message, true);
@@ -118,6 +154,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<LibraryCtx>(() => {
     const names = new Map(categories.map((c) => [c.id, c.name]));
+    const colors = new Map(categories.map((c) => [c.id, c.color]));
     return {
       loaded,
       files,
@@ -129,8 +166,25 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       removeFile: (id) => setFiles((prev) => prev.filter((x) => x.id !== id)),
       setCategories,
       catName: (id) => names.get(id) ?? 'Altres',
+      catColor: (id) => colors.get(id) ?? '#57534e',
+      tags,
+      people,
+      setTags,
+      setPeople,
+      prefs,
+      updatePrefs,
     };
-  }, [loaded, files, categories, reload]);
+  }, [loaded, files, categories, tags, people, prefs, reload, updatePrefs]);
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
+}
+
+/** Text addicional pel qual es pot cercar un document: nom d'etiquetes, persones i categoria. */
+export function useSearchText() {
+  const { tags, people, catName } = useLibrary();
+  return useMemo(() => {
+    const t = new Map(tags.map((x) => [x.id, x.name]));
+    const p = new Map(people.map((x) => [x.id, x.name]));
+    return (f: FileItem) => [catName(f.category), ...f.tags.map((i) => t.get(i) ?? ''), ...f.people.map((i) => p.get(i) ?? '')].join(' ');
+  }, [tags, people, catName]);
 }

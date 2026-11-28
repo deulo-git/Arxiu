@@ -15,6 +15,7 @@ import { createStorage, type Storage } from './files/storage.ts';
 import { getUser } from './user.ts';
 import { authRoutes } from './routes/auth.ts';
 import { accountRoutes } from './routes/account.ts';
+import { organizeRoutes } from './routes/organize.ts';
 import { libraryRoutes } from './routes/library.ts';
 
 export interface Deps {
@@ -88,7 +89,7 @@ export async function buildApp(opts: { config: Config; db: DB; mailer?: Mailer; 
   await app.register(cookie);
   await app.register(rateLimit, { global: false });
   await app.register(multipart, {
-    limits: { fileSize: config.maxUploadBytes, files: 2, fields: 10, fieldSize: 4096 },
+    limits: { fileSize: config.maxUploadBytes, files: 2, fields: 12, fieldSize: 4096 },
   });
 
   app.addHook('onRequest', async (request) => {
@@ -135,6 +136,7 @@ export async function buildApp(opts: { config: Config; db: DB; mailer?: Mailer; 
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(accountRoutes, { prefix: '/api/account' });
   await app.register(libraryRoutes);
+  await app.register(organizeRoutes);
 
   // Aplicació web compilada (npm run build).
   const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -144,6 +146,7 @@ export async function buildApp(opts: { config: Config; db: DB; mailer?: Mailer; 
       wildcard: false,
       setHeaders(res, filePath) {
         if (filePath.includes(`${path.sep}assets${path.sep}`)) res.header('cache-control', 'public, max-age=31536000, immutable');
+        else if (filePath.endsWith('sw.js') || filePath.endsWith('.webmanifest')) res.header('cache-control', 'no-cache');
       },
     });
     app.setNotFoundHandler((request, reply: FastifyReply) => {

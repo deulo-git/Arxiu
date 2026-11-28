@@ -3,25 +3,36 @@ import { Link, useNavigate, useOutletContext } from 'react-router';
 import { api, downloadUrl, thumbUrl, type FileItem } from '../api.ts';
 import { Icon } from '../components/Icon.tsx';
 import { countLabel, formatDate, formatSize } from '../lib/format.ts';
-import { groupByMonth, periods, toParams, useFilteredFiles, type Period, type Sort } from '../lib/filters.ts';
-import { useLibrary, useToast } from '../state.tsx';
+import { groupFiles, periods, toParams, useFilteredFiles, type Period, type Sort } from '../lib/filters.ts';
+import { Pill } from '../components/Pill.tsx';
+import { useLibrary, useSearchText, useToast } from '../state.tsx';
 import type { ShellContext } from './Shell.tsx';
 
 type Mode = 'grid' | 'list';
 
-function readMode(): Mode {
-  try {
-    return localStorage.getItem('arxiu.mode') === 'list' ? 'list' : 'grid';
-  } catch {
-    return 'grid';
-  }
+/** Categoria, etiquetes i persones d'un document, amb el seu color. */
+function DocPills({ f, max = 3, small }: { f: FileItem; max?: number; small?: boolean }) {
+  const { catName, catColor, tags, people, prefs } = useLibrary();
+  const items: { key: string; kind: 'tag' | 'person'; name: string; color: string }[] = [];
+  if (prefs.showPeople) for (const id of f.people) { const p = people.find((x) => x.id === id); if (p) items.push({ key: id, kind: 'person', name: p.name, color: p.color }); }
+  if (prefs.showTags) for (const id of f.tags) { const t = tags.find((x) => x.id === id); if (t) items.push({ key: id, kind: 'tag', name: t.name, color: t.color }); }
+  return (
+    <span className="pills">
+      <Pill kind="cat" name={catName(f.category)} color={catColor(f.category)} small={small} />
+      {items.slice(0, max).map((i) => (
+        <Pill key={i.key} kind={i.kind} name={i.name} color={i.color} small />
+      ))}
+      {items.length > max && <span className="meta">+{items.length - max}</span>}
+    </span>
+  );
 }
 
 export function Library() {
-  const { files, categories, loaded, catName, setCategories, reload } = useLibrary();
+  const { files, categories, loaded, catName, setCategories, reload, tags, people, prefs, updatePrefs } = useLibrary();
   const { openUpload } = useOutletContext<ShellContext>();
-  const { filters, update, list, query } = useFilteredFiles(files);
-  const [mode, setModeState] = useState<Mode>(readMode);
+  const searchText = useSearchText();
+  const { filters, update, list, query } = useFilteredFiles(files, searchText);
+  const mode: Mode = prefs.view;
   const [q, setQ] = useState(filters.q);
   const toast = useToast();
   const navigate = useNavigate();
@@ -32,20 +43,13 @@ export function Library() {
     return () => window.clearTimeout(t);
   }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const setMode = (m: Mode) => {
-    setModeState(m);
-    try {
-      localStorage.setItem('arxiu.mode', m);
-    } catch {
-      /* sense emmagatzematge */
-    }
-  };
+  const setMode = (m: Mode) => void updatePrefs({ view: m });
 
   const current = categories.find((c) => c.id === filters.cat);
   const title = filters.cat === 'all' ? 'Tots els documents' : current?.name ?? 'Categoria';
-  const groups = groupByMonth(list, filters.sort);
+  const groups = groupFiles(list, filters.sort, prefs.group, catName);
   const docLink = (f: FileItem) => ({ pathname: `/document/${f.id}`, search: query });
-  const clear = () => (setQ(''), update({ period: 'all', from: '', to: '', q: '', cat: 'all' }));
+  const clear = () => (setQ(''), update({ period: 'all', from: '', to: '', q: '', cat: 'all', tag: '', person: '' }));
 
   async function renameCat() {
     if (!current) return;
@@ -73,6 +77,41 @@ export function Library() {
     }
   }
 
+  const filterSelects = (
+    <>
+      {tags.length > 0 && (
+        <>
+          <label className="sr" htmlFor="ft">
+            Filtra per etiqueta
+          </label>
+          <select id="ft" className="field" value={filters.tag} onChange={(e) => update({ tag: e.target.value })}>
+            <option value="">Etiqueta</option>
+            {tags.map((t) => (
+              <option key={t.id} value={t.id}>
+                # {t.name}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+      {people.length > 0 && (
+        <>
+          <label className="sr" htmlFor="fp">
+            Filtra per persona
+          </label>
+          <select id="fp" className="field" value={filters.person} onChange={(e) => update({ person: e.target.value })}>
+            <option value="">Persona</option>
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+    </>
+  );
+
   return (
     <div className="stack" style={{ gap: 20 }}>
       <div className="toolbar desktop-only">
@@ -81,16 +120,17 @@ export function Library() {
             Cerca documents
           </label>
           <Icon name="search" />
-          <input id="q" className="field block" type="search" placeholder="Cerca per nom…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input id="q" className="field block" type="search" placeholder="Cerca per nom, etiqueta o persona…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <label className="sr" htmlFor="so">
           Ordena
         </label>
-        <select id="so" className="field" style={{ minWidth: 190 }} value={filters.sort} onChange={(e) => update({ sort: e.target.value as Sort })}>
+        <select id="so" className="field" style={{ minWidth: 170 }} value={filters.sort} onChange={(e) => update({ sort: e.target.value as Sort })}>
           <option value="new">Més recents primer</option>
           <option value="old">Més antics primer</option>
           <option value="name">Nom (A–Z)</option>
         </select>
+        {filterSelects}
         <div className="seg" role="group" aria-label="Vista">
           <button className={`icon-btn${mode === 'grid' ? ' on' : ''}`} aria-label="Vista en quadrícula" aria-pressed={mode === 'grid'} onClick={() => setMode('grid')}>
             <Icon name="grid" />
@@ -127,7 +167,7 @@ export function Library() {
             Cerca documents
           </label>
           <Icon name="search" />
-          <input id="mq" className="field block" type="search" placeholder="Cerca per nom…" value={q} onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 44 }} />
+          <input id="mq" className="field block" type="search" placeholder="Cerca documents…" value={q} onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 44 }} />
         </div>
         <div className="chips-scroll">
           {[{ id: 'all', name: 'Tots' }, ...categories].map((c) => (
@@ -136,6 +176,7 @@ export function Library() {
             </button>
           ))}
         </div>
+        {(tags.length > 0 || people.length > 0) && <div className="filter-selects">{filterSelects}</div>}
         <div className="row-flex" style={{ gap: 10 }}>
           <span className="muted" style={{ display: 'flex' }}>
             <Icon name="calendar" size={20} />
@@ -238,9 +279,7 @@ export function Library() {
                         <span className="meta">
                           {formatDate(f.date)} · {formatSize(f.size)}
                         </span>
-                        <span className="tag" style={{ alignSelf: 'flex-start' }}>
-                          {catName(f.category)}
-                        </span>
+                        <DocPills f={f} />
                       </div>
                     </Link>
                   ))}
@@ -258,9 +297,7 @@ export function Library() {
                       <span className="meta">
                         {formatDate(f.date)} · {formatSize(f.size)}
                       </span>
-                    </span>
-                    <span className="tag" style={{ fontSize: 11, padding: '2px 8px' }}>
-                      {catName(f.category)}
+                      <DocPills f={f} max={2} small />
                     </span>
                   </Link>
                 ))}
@@ -271,7 +308,7 @@ export function Library() {
             <div className="table">
               <div className="trow head">
                 <span>Nom</span>
-                <span>Categoria</span>
+                <span>Categoria i etiquetes</span>
                 <span>Data</span>
                 <span>Mida</span>
                 <span style={{ textAlign: 'right' }}>Accions</span>
@@ -283,7 +320,7 @@ export function Library() {
                     <span className="ell">{f.name}</span>
                   </Link>
                   <span>
-                    <span className="tag">{catName(f.category)}</span>
+                    <DocPills f={f} max={4} />
                   </span>
                   <span className="meta" style={{ fontSize: 13 }}>
                     {formatDate(f.date)}

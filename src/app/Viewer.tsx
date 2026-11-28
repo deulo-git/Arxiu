@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { api, downloadUrl, type Share } from '../api.ts';
+import { api, downloadUrl, type FileItem, type Share } from '../api.ts';
+import { ChipPicker } from '../components/ChipPicker.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { formatDate, formatDateTime, formatSize } from '../lib/format.ts';
+import { formatDate, formatDateTime, formatSize, stripExt } from '../lib/format.ts';
 import { useFilteredFiles } from '../lib/filters.ts';
-import { useLibrary, useToast } from '../state.tsx';
+import { useLibrary, useSearchText, useToast } from '../state.tsx';
 import { DocumentPreview } from './DocumentPreview.tsx';
 
 export function Viewer() {
   const { id } = useParams();
-  const { files, categories, loaded, replaceFile, removeFile } = useLibrary();
-  const { list, query } = useFilteredFiles(files);
+  const { files, categories, loaded, replaceFile, removeFile, tags, people, setTags, setPeople, prefs } = useLibrary();
+  const searchText = useSearchText();
+  const { list, query } = useFilteredFiles(files, searchText);
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState('');
   const toast = useToast();
   const navigate = useNavigate();
   const [confirmDel, setConfirmDel] = useState(false);
@@ -24,6 +28,7 @@ export function Viewer() {
 
   useEffect(() => {
     setConfirmDel(false);
+    setRenaming(false);
     setNewShare(null);
     setShares([]);
     if (id) api.shares(id).then((r) => setShares(r.shares)).catch(() => {});
@@ -53,7 +58,7 @@ export function Viewer() {
     );
   }
 
-  async function patch(p: { category?: string; date?: string }, msg: string) {
+  async function patch(p: Partial<Pick<FileItem, 'name' | 'category' | 'date' | 'tags' | 'people'>>, msg: string) {
     try {
       const { file: f } = await api.updateFile(file!.id, p);
       replaceFile(f);
@@ -61,6 +66,15 @@ export function Viewer() {
     } catch (err) {
       toast((err as Error).message, true);
     }
+  }
+
+  async function rename() {
+    const base = draftName.trim();
+    if (!base) return toast('El document necessita un nom.', true);
+    const ext = /\.[a-z0-9]{1,5}$/i.exec(file!.name)?.[0] ?? '';
+    const name = ext && !base.toLowerCase().endsWith(ext.toLowerCase()) ? base + ext : base;
+    setRenaming(false);
+    if (name !== file!.name) await patch({ name }, 'Nom actualitzat');
   }
 
   async function del() {
@@ -76,7 +90,7 @@ export function Viewer() {
 
   async function share() {
     try {
-      const { share: s } = await api.createShare(file!.id, 24);
+      const { share: s } = await api.createShare(file!.id, prefs.shareHours);
       setNewShare(s);
       setShares((prev) => [s, ...prev]);
       const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
@@ -84,8 +98,8 @@ export function Viewer() {
         await nav.share({ title: file!.name, url: s.url }).catch(() => {});
       } else {
         await navigator.clipboard?.writeText(s.url!).then(
-          () => toast('Enllaç temporal copiat (caduca en 24 h)'),
-          () => toast('Enllaç creat (caduca en 24 h)'),
+          () => toast('Enllaç temporal copiat'),
+          () => toast('Enllaç creat'),
         );
       }
     } catch (err) {
@@ -137,7 +151,40 @@ export function Viewer() {
               <span className="badge" style={{ display: 'inline-block', marginBottom: 8 }}>
                 {file.type}
               </span>
-              <h1 style={{ fontSize: 20, lineHeight: '28px', fontWeight: 600, wordBreak: 'break-word' }}>{file.name}</h1>
+              {renaming ? (
+                <form
+                  className="row-flex"
+                  style={{ gap: 6 }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void rename();
+                  }}
+                >
+                  <label className="sr" htmlFor="vn">
+                    Nom del document
+                  </label>
+                  <input id="vn" className="field block" autoFocus maxLength={180} value={draftName} onChange={(e) => setDraftName(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && setRenaming(false)} />
+                  <button className="icon-btn" aria-label="Desa el nom" type="submit">
+                    <Icon name="check" />
+                  </button>
+                  <button className="icon-btn" aria-label="Cancel·la" type="button" onClick={() => setRenaming(false)}>
+                    <Icon name="close" />
+                  </button>
+                </form>
+              ) : (
+                <div className="row-flex" style={{ gap: 4, alignItems: 'flex-start' }}>
+                  <h1 style={{ fontSize: 20, lineHeight: '28px', fontWeight: 600, wordBreak: 'break-word', flex: 1 }}>{file.name}</h1>
+                  <button
+                    className="icon-btn"
+                    style={{ width: 36, height: 36 }}
+                    aria-label="Canvia el nom"
+                    title="Canvia el nom"
+                    onClick={() => (setDraftName(stripExt(file.name)), setRenaming(true))}
+                  >
+                    <Icon name="edit" />
+                  </button>
+                </div>
+              )}
               <p className="meta" style={{ marginTop: 4, fontSize: 13 }}>
                 {formatSize(file.size)}
                 {file.pages && file.kind === 'pdf' ? ` · ${file.pages} ${file.pages === 1 ? 'pàgina' : 'pàgines'}` : ''} · pujat el {formatDate(file.addedAt)}
@@ -190,6 +237,32 @@ export function Viewer() {
                   ))}
                 </select>
               </div>
+              <ChipPicker
+                label="Etiquetes"
+                kind="tag"
+                items={tags}
+                value={file.tags}
+                onChange={(v) => patch({ tags: v }, 'Etiquetes actualitzades')}
+                onCreate={async (name) => {
+                  const { item } = await api.addTag(name);
+                  setTags((t) => [...t, item]);
+                  return item;
+                }}
+                placeholder="Afegeix o crea una etiqueta…"
+              />
+              <ChipPicker
+                label="Persones relacionades"
+                kind="person"
+                items={people}
+                value={file.people}
+                onChange={(v) => patch({ people: v }, 'Persones actualitzades')}
+                onCreate={async (name) => {
+                  const { item } = await api.addPerson(name);
+                  setPeople((p) => [...p, item]);
+                  return item;
+                }}
+                placeholder="Afegeix o crea una persona…"
+              />
               <div>
                 <label className="lbl" htmlFor="vd">
                   Data del document

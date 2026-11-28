@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_CATEGORIES } from '../shared/categories.ts';
+import { colorAt } from '../shared/colors.ts';
 
 export type DB = DatabaseSync;
 
@@ -70,6 +71,45 @@ const MIGRATIONS: string[] = [
     expires_at INTEGER NOT NULL
   );
   `,
+  `
+  ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT '';
+
+  CREATE TABLE tags (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX tags_name ON tags(lower(name));
+
+  CREATE TABLE people (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX people_name ON people(lower(name));
+
+  CREATE TABLE file_tags (
+    file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (file_id, tag_id)
+  );
+  CREATE INDEX file_tags_tag ON file_tags(tag_id);
+
+  CREATE TABLE file_people (
+    file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    person_id TEXT NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+    PRIMARY KEY (file_id, person_id)
+  );
+  CREATE INDEX file_people_person ON file_people(person_id);
+
+  CREATE TABLE prefs (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
 ];
 
 export function openDb(dataDir: string): DB {
@@ -88,6 +128,7 @@ function migrate(db: DB) {
     try {
       db.exec(MIGRATIONS[version]);
       if (version === 0) seedCategories(db);
+      if (version === 1) colorCategories(db);
       version += 1;
       db.exec(`PRAGMA user_version = ${version}`);
       db.exec('COMMIT');
@@ -102,6 +143,13 @@ function seedCategories(db: DB) {
   const now = new Date().toISOString();
   const insert = db.prepare('INSERT INTO categories (id, name, position, created_at) VALUES (?, ?, ?, ?)');
   DEFAULT_CATEGORIES.forEach((c, i) => insert.run(c.id, c.name, i, now));
+}
+
+/** Dona un color a les categories que ja existien abans de poder-ne triar. */
+function colorCategories(db: DB) {
+  const rows = db.prepare('SELECT id FROM categories ORDER BY position, created_at').all() as { id: string }[];
+  const set = db.prepare('UPDATE categories SET color = ? WHERE id = ?');
+  rows.forEach((r, i) => set.run(colorAt(i), r.id));
 }
 
 export function tx<T>(db: DB, fn: () => T): T {

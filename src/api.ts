@@ -4,10 +4,27 @@ export interface User {
   lockMinutes: number;
 }
 
+import type { Prefs } from '../shared/prefs.ts';
+export type { Prefs };
+
 export interface Category {
   id: string;
   name: string;
+  color: string;
   fixed: boolean;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface Person {
+  id: string;
+  name: string;
+  color: string;
+  notes: string;
 }
 
 export interface FileItem {
@@ -22,6 +39,8 @@ export interface FileItem {
   type: string;
   pages: number | null;
   hasThumb: boolean;
+  tags: string[];
+  people: string[];
 }
 
 export interface Status {
@@ -103,12 +122,29 @@ export const api = {
   closeSession: (id: string) => request('DELETE', `/api/account/sessions/${id}`),
 
   categories: () => get<{ categories: Category[] }>('/api/categories'),
-  addCategory: (name: string) => post<{ category: Category }>('/api/categories', { name }),
+  addCategory: (name: string, color?: string) => post<{ category: Category }>('/api/categories', { name, color }),
+  updateCategory: (id: string, patch: { name?: string; color?: string }) => request<{ category: Category }>('PATCH', `/api/categories/${id}`, patch),
   renameCategory: (id: string, name: string) => request<{ category: Category }>('PATCH', `/api/categories/${id}`, { name }),
+  orderCategories: (ids: string[]) => request('PUT', '/api/categories/order', { ids }),
+
+  tags: () => get<{ items: Tag[] }>('/api/tags'),
+  addTag: (name: string, color?: string) => post<{ item: Tag }>('/api/tags', { name, color }),
+  updateTag: (id: string, patch: { name?: string; color?: string }) => request<{ item: Tag }>('PATCH', `/api/tags/${id}`, patch),
+  deleteTag: (id: string) => request<{ unlinked: number }>('DELETE', `/api/tags/${id}`),
+  mergeTag: (id: string, into: string) => post(`/api/tags/${id}/merge`, { into }),
+
+  people: () => get<{ items: Person[] }>('/api/people'),
+  addPerson: (name: string, color?: string, notes?: string) => post<{ item: Person }>('/api/people', { name, color, notes }),
+  updatePerson: (id: string, patch: { name?: string; color?: string; notes?: string }) => request<{ item: Person }>('PATCH', `/api/people/${id}`, patch),
+  deletePerson: (id: string) => request<{ unlinked: number }>('DELETE', `/api/people/${id}`),
+  mergePerson: (id: string, into: string) => post(`/api/people/${id}/merge`, { into }),
+
+  prefs: () => get<{ prefs: Prefs }>('/api/prefs'),
+  savePrefs: (prefs: Partial<Prefs>) => request<{ prefs: Prefs }>('PUT', '/api/prefs', prefs),
   deleteCategory: (id: string) => request<{ moved: number }>('DELETE', `/api/categories/${id}`),
 
   files: () => get<{ files: FileItem[]; usedBytes: number }>('/api/files'),
-  updateFile: (id: string, patch: Partial<Pick<FileItem, 'name' | 'category' | 'date'>>) =>
+  updateFile: (id: string, patch: Partial<Pick<FileItem, 'name' | 'category' | 'date' | 'tags' | 'people'>>) =>
     request<{ file: FileItem }>('PATCH', `/api/files/${id}`, patch),
   deleteFile: (id: string) => request('DELETE', `/api/files/${id}`),
   shares: (id: string) => get<{ shares: Share[] }>(`/api/files/${id}/shares`),
@@ -126,6 +162,8 @@ export interface UploadMeta {
   date: string;
   pages?: number | null;
   thumb?: Blob | null;
+  tags?: string[];
+  people?: string[];
 }
 
 /** Puja un arxiu amb XHR per poder mostrar el progrés. */
@@ -135,6 +173,8 @@ export function uploadFile(file: File, meta: UploadMeta, onProgress: (loaded: nu
     form.append('name', meta.name);
     form.append('category', meta.category);
     form.append('date', meta.date);
+    if (meta.tags?.length) form.append('tags', JSON.stringify(meta.tags));
+    if (meta.people?.length) form.append('people', JSON.stringify(meta.people));
     if (meta.pages) form.append('pages', String(meta.pages));
     if (meta.thumb) form.append('thumb', meta.thumb, 'thumb.jpg');
     form.append('file', file, meta.name);

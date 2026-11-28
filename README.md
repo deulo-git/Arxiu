@@ -11,6 +11,10 @@ Implementa el disseny «Arxiu — prototip» (escriptori i mòbil) amb el sistem
 - **Recuperació de contrasenya per correu** amb enllaç d'un sol ús que caduca en 30 minuts; en restablir-la es tanquen totes les sessions.
 - **Tancament automàtic** de la sessió per inactivitat (5, 15, 30 o 60 minuts) i llista de **sessions obertes** per tancar-les a distància.
 - **Pujada d'arxius** (PDF, JPG, PNG, HEIC, WEBP; fins a 50 MB): arrossegar i deixar anar a l'ordinador; càmera, galeria o arxius al mòbil. La categoria s'endevina pel nom i es pot canviar abans de pujar.
+- **Etiquetes i persones**: cada document pot tenir, a més de la categoria, etiquetes lliures (#urgent, #hisenda…) i persones relacionades. Es creen al moment en pujar i es poden filtrar des del menú, la cerca o la URL.
+- **Pujada guiada**: per a cada arxiu has de decidir el **nom**, la **categoria** (o crear-ne una de nova allà mateix), les etiquetes i les persones. Es pot aplicar la mateixa tria a tots els arxius d'una tanda.
+- **Configuració extensa**: categories (nom, color, ordre), etiquetes i persones (nom, color, notes, fusionar, eliminar), tema clar/fosc, vista, ordre i agrupació per defecte, opcions de pujada, durada dels enllaços i seguretat.
+- **Aplicació instal·lable (PWA)** per al mòbil: icona pròpia, pantalla completa i drecera «Puja un document». Cal servir-la amb https o des de localhost.
 - **Biblioteca** agrupada per mesos, en quadrícula o llista, amb cerca, ordenació, categories (crear, reanomenar, eliminar) i filtres per període o rang de dates. Els filtres es guarden a la URL.
 - **Visor** de PDF (pàgina a pàgina, amb pdf.js) i d'imatges, amb navegació anterior/següent, canvi de categoria i data, descàrrega i eliminació.
 - **Compartir** amb enllaços temporals (24 h) que es poden revocar.
@@ -82,3 +86,4 @@ Per publicar-lo a internet en un VPS (Hostinger, OVHcloud, Hetzner…) amb HTTPS
 - Desbloqueig amb biometria al mòbil (WebAuthn / claus d'accés), que surt al prototip.
 - Codis de recuperació per a la verificació en dos passos.
 - Cerca dins del text dels documents (OCR).
+- Rebre fitxers des de «Comparteix» del mòbil (Web Share Target).

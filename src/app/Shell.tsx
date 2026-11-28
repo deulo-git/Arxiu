@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router';
+import { Link, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { api } from '../api.ts';
 import { BrandMark, Icon } from '../components/Icon.tsx';
 import { formatSize } from '../lib/format.ts';
@@ -32,7 +32,7 @@ function useActivityPing() {
 }
 
 export function Shell() {
-  const { categories, files, usedBytes, setCategories } = useLibrary();
+  const { categories, files, usedBytes, setCategories, tags, people } = useLibrary();
   const { setUser } = useSession();
   const toast = useToast();
   const navigate = useNavigate();
@@ -43,10 +43,29 @@ export function Shell() {
   const [newCat, setNewCat] = useState('');
   useActivityPing();
 
+  // Drecera de la PWA («Puja un document»): /?pujar=1 obre directament el diàleg.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (params.get('pujar')) {
+      setUpload(true);
+      const next = new URLSearchParams(params);
+      next.delete('pujar');
+      setParams(next, { replace: true });
+    }
+  }, [params, setParams]);
+
   const inLibrary = location.pathname === '/';
   const inSettings = location.pathname === '/ajustos';
   const counts = new Map<string, number>();
-  files.forEach((f) => counts.set(f.category, (counts.get(f.category) ?? 0) + 1));
+  const tagCounts = new Map<string, number>();
+  const personCounts = new Map<string, number>();
+  files.forEach((f) => {
+    counts.set(f.category, (counts.get(f.category) ?? 0) + 1);
+    f.tags.forEach((t) => tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1));
+    f.people.forEach((p) => personCounts.set(p, (personCounts.get(p) ?? 0) + 1));
+  });
+  const goFilter = (patch: { tag?: string; person?: string }) =>
+    navigate({ pathname: '/', search: toParams({ ...filters, cat: 'all', tag: '', person: '', ...patch }).toString() });
 
   const goCat = (cat: string) => {
     const p = toParams({ ...filters, cat });
@@ -127,19 +146,53 @@ export function Shell() {
           )}
           {categories.map((c) => (
             <button key={c.id} className={`nav${inLibrary && filters.cat === c.id ? ' on' : ''}`} onClick={() => goCat(c.id)}>
-              <Icon name="folder" />
+              <span className="cat-ico" style={{ color: c.color, display: 'flex' }}>
+                <Icon name="folder" />
+              </span>
               <span className="ell">{c.name}</span>
               <span className="n">{counts.get(c.id) ?? 0}</span>
             </button>
           ))}
         </div>
+        {people.length > 0 && (
+          <div className="stack" style={{ gap: 2 }}>
+            <div className="nav-heading">
+              <span>Persones</span>
+            </div>
+            {people.map((p) => (
+              <button key={p.id} className={`nav${inLibrary && filters.person === p.id ? ' on' : ''}`} onClick={() => goFilter({ person: p.id })}>
+                <span className="avatar" style={{ background: p.color }} aria-hidden="true">
+                  {p.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="ell">{p.name}</span>
+                <span className="n">{personCounts.get(p.id) ?? 0}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {tags.length > 0 && (
+          <div className="stack" style={{ gap: 2 }}>
+            <div className="nav-heading">
+              <span>Etiquetes</span>
+            </div>
+            {tags.map((t) => (
+              <button key={t.id} className={`nav${inLibrary && filters.tag === t.id ? ' on' : ''}`} onClick={() => goFilter({ tag: t.id })}>
+                <span style={{ color: t.color, fontWeight: 700, width: 20, textAlign: 'center' }} aria-hidden="true">
+                  #
+                </span>
+                <span className="ell">{t.name}</span>
+                <span className="n">{tagCounts.get(t.id) ?? 0}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="sidebar-foot">
           <div className="meta" style={{ padding: '0 12px 10px' }}>
             {formatSize(usedBytes)} utilitzats
           </div>
           <Link className={`nav${inSettings ? ' on' : ''}`} to="/ajustos">
-            <Icon name="lock" />
-            Seguretat i compte
+            <Icon name="gear" />
+            Configuració
           </Link>
           <button className="nav" onClick={logout}>
             <Icon name="logout" />
@@ -163,7 +216,7 @@ export function Shell() {
           </button>
         </div>
         <Link className={`tab${inSettings ? ' on' : ''}`} to="/ajustos">
-          <Icon name="lock" />
+          <Icon name="gear" />
           Ajustos
         </Link>
       </nav>

@@ -5,10 +5,11 @@ Arxiu personal d'un sol usuari per guardar, ordenar i compartir documents. Tota 
 ## Estructura
 
 - `server/` — API en Node.js 22 (TypeScript executat directament, sense compilar) amb Fastify i `node:sqlite`.
-  - `app.ts` (configuració, seguretat, `/api/health`), `routes/` (auth, account, library), `auth/` (scrypt, TOTP, sessions), `files/` (emmagatzematge i detecció de tipus), `cli/` (`user.ts`, `backup.ts`).
-- `shared/` — codi compartit entre servidor i web (regles de contrasenya, categories).
+  - `app.ts` (configuració, seguretat, `/api/health`), `routes/` (auth, account, library, organize: etiquetes, persones i preferències), `auth/` (scrypt, TOTP, sessions), `files/` (emmagatzematge i detecció de tipus), `cli/` (`user.ts`, `backup.ts`).
+- `shared/` — codi compartit entre servidor i web (regles de contrasenya, categories, paleta de colors, preferències).
 - `src/` — web en React 19 + React Router + Vite. Estils a `src/styles.css` amb els tokens del sistema de disseny «Arxiu» (clar i fosc).
 - `tests/` — proves de l'API amb Vitest (`app.inject`).
+- `public/` — PWA: `manifest.webmanifest`, `sw.js` (només desa la carcassa de l'app, mai dades) i `icons/`.
 - `deploy/` — desplegament al VPS: Docker Compose (Caddy + arxiu), `Caddyfile`, `backup.sh`, guia `deploy/README.md`.
 
 ## Ordres

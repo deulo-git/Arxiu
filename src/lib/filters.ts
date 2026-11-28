@@ -6,6 +6,12 @@ import { daysAgo, MONTHS } from './format.ts';
 export type Period = 'all' | '30' | '90' | 'year' | 'last' | 'custom';
 export type Sort = 'new' | 'old' | 'name';
 
+/** Ordre per defecte (preferència de l'usuari): si coincideix, no cal posar-lo a la URL. */
+let defaultSort: Sort = 'new';
+export function setDefaultSort(s: Sort) {
+  defaultSort = s;
+}
+
 export function periods(): { id: Period; label: string }[] {
   const last = new Date().getFullYear() - 1;
   return [
@@ -25,6 +31,8 @@ export interface Filters {
   to: string;
   q: string;
   sort: Sort;
+  tag: string;
+  person: string;
 }
 
 /** Els filtres de la biblioteca viuen a la URL: així el botó enrere i el visor els conserven. */
@@ -36,7 +44,9 @@ export function useFilters() {
     from: params.get('des') || '',
     to: params.get('fins') || '',
     q: params.get('q') || '',
-    sort: (params.get('ordre') as Sort) || 'new',
+    sort: (params.get('ordre') as Sort) || defaultSort,
+    tag: params.get('etiqueta') || '',
+    person: params.get('persona') || '',
   };
   const update = (patch: Partial<Filters>, opts: { replace?: boolean } = {}) => {
     const next = { ...filters, ...patch };
@@ -52,11 +62,13 @@ export function toParams(f: Filters): URLSearchParams {
   if (f.period === 'custom' && f.from) p.set('des', f.from);
   if (f.period === 'custom' && f.to) p.set('fins', f.to);
   if (f.q) p.set('q', f.q);
-  if (f.sort !== 'new') p.set('ordre', f.sort);
+  if (f.sort !== defaultSort) p.set('ordre', f.sort);
+  if (f.tag) p.set('etiqueta', f.tag);
+  if (f.person) p.set('persona', f.person);
   return p;
 }
 
-export function applyFilters(files: FileItem[], f: Filters): FileItem[] {
+export function applyFilters(files: FileItem[], f: Filters, extra?: (x: FileItem) => string): FileItem[] {
   let lo = '0000-00-00';
   let hi = '9999-99-99';
   const year = new Date().getFullYear();
@@ -73,7 +85,13 @@ export function applyFilters(files: FileItem[], f: Filters): FileItem[] {
   }
   const q = f.q.trim().toLocaleLowerCase('ca');
   const list = files.filter(
-    (x) => (f.cat === 'all' || x.category === f.cat) && x.date >= lo && x.date <= hi && (!q || x.name.toLocaleLowerCase('ca').includes(q)),
+    (x) =>
+      (f.cat === 'all' || x.category === f.cat) &&
+      (!f.tag || x.tags.includes(f.tag)) &&
+      (!f.person || x.people.includes(f.person)) &&
+      x.date >= lo &&
+      x.date <= hi &&
+      (!q || `${x.name} ${extra?.(x) ?? ''}`.toLocaleLowerCase('ca').includes(q)),
   );
   list.sort((a, b) => {
     if (f.sort === 'name') return a.name.localeCompare(b.name, 'ca');
@@ -83,23 +101,39 @@ export function applyFilters(files: FileItem[], f: Filters): FileItem[] {
   return list;
 }
 
-export function useFilteredFiles(files: FileItem[]) {
+export function useFilteredFiles(files: FileItem[], extra?: (x: FileItem) => string) {
   const ctx = useFilters();
-  const list = useMemo(() => applyFilters(files, ctx.filters), [files, ctx.query]); // eslint-disable-line react-hooks/exhaustive-deps
+  const list = useMemo(() => applyFilters(files, ctx.filters, extra), [files, extra, ctx.query]); // eslint-disable-line react-hooks/exhaustive-deps
   return { ...ctx, list };
 }
 
-export function groupByMonth(list: FileItem[], sort: Sort): { key: string; label: string; items: FileItem[] }[] {
-  if (sort === 'name') return list.length ? [{ key: 'nom', label: 'Per nom', items: list }] : [];
-  const groups: { key: string; label: string; items: FileItem[] }[] = [];
+export type Group = 'month' | 'year' | 'category' | 'none';
+
+export function groupFiles(
+  list: FileItem[],
+  sort: Sort,
+  group: Group,
+  catName: (id: string) => string,
+): { key: string; label: string; items: FileItem[] }[] {
+  if (!list.length) return [];
+  if (group === 'none' || sort === 'name') return [{ key: 'tots', label: sort === 'name' ? 'Per nom' : 'Documents', items: list }];
+  const groups = new Map<string, { key: string; label: string; items: FileItem[] }>();
   for (const f of list) {
-    const k = f.date.slice(0, 7);
-    let g = groups[groups.length - 1];
-    if (!g || g.key !== k) {
-      g = { key: k, label: `${MONTHS[parseInt(k.slice(5), 10) - 1]} ${k.slice(0, 4)}`, items: [] };
-      groups.push(g);
+    let key: string;
+    let label: string;
+    if (group === 'category') {
+      key = f.category;
+      label = catName(f.category);
+    } else if (group === 'year') {
+      key = f.date.slice(0, 4);
+      label = key;
+    } else {
+      key = f.date.slice(0, 7);
+      label = `${MONTHS[parseInt(key.slice(5), 10) - 1]} ${key.slice(0, 4)}`;
     }
-    g.items.push(f);
+    const g = groups.get(key);
+    if (g) g.items.push(f);
+    else groups.set(key, { key, label, items: [f] });
   }
-  return groups;
+  return [...groups.values()];
 }

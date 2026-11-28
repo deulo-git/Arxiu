@@ -211,4 +211,50 @@ describe('documents', () => {
     expect(res.rawPayload.subarray(0, 2).toString()).toBe('PK');
     expect(res.rawPayload.includes(Buffer.from('Arxiu/Factures/2026-01-02 Llum.pdf'))).toBe(true);
   });
+
+  it('relaciona documents amb etiquetes i persones', async () => {
+    const tag = (await call('POST', '/api/tags', { name: 'Urgent' })).json().item;
+    const person = (await call('POST', '/api/people', { name: 'Anna', notes: 'Filla' })).json().item;
+    expect(tag.color).toMatch(/^#[0-9a-f]{6}$/);
+    expect((await call('POST', '/api/tags', { name: 'urgent' })).statusCode).toBe(409);
+    expect((await call('POST', '/api/people', { name: '  ' })).statusCode).toBe(400);
+
+    const file = (
+      await upload({ tags: JSON.stringify([tag.id, 'inexistent']), people: JSON.stringify([person.id]) }, { name: 'Rebut.pdf', data: PDF, type: 'application/pdf' })
+    ).json().file;
+    expect(file.tags).toEqual([tag.id]);
+    expect(file.people).toEqual([person.id]);
+    expect((await call('GET', '/api/files')).json().files[0]).toMatchObject({ tags: [tag.id], people: [person.id] });
+
+    const patched = (await call('PATCH', `/api/files/${file.id}`, { name: 'Rebut llum.pdf', tags: [], people: [person.id] })).json().file;
+    expect(patched).toMatchObject({ name: 'Rebut llum.pdf', tags: [], people: [person.id] });
+
+    // Eliminar la persona la desvincula del document.
+    expect((await call('DELETE', `/api/people/${person.id}`)).json()).toMatchObject({ unlinked: 1 });
+    expect((await call('GET', '/api/files')).json().files[0].people).toEqual([]);
+  });
+
+  it('fusiona etiquetes i canvia colors de categoria', async () => {
+    const a = (await call('POST', '/api/tags', { name: 'Hisenda' })).json().item;
+    const b = (await call('POST', '/api/tags', { name: 'Impostos', color: '#0369a1' })).json().item;
+    expect(b.color).toBe('#0369a1');
+    const file = (await upload({ tags: JSON.stringify([a.id]) }, { name: 'Renda.pdf', data: PDF, type: 'application/pdf' })).json().file;
+    expect((await call('POST', `/api/tags/${a.id}/merge`, { into: b.id })).statusCode).toBe(200);
+    expect((await call('GET', '/api/files')).json().files.find((f: { id: string }) => f.id === file.id).tags).toEqual([b.id]);
+
+    const cats = (await call('GET', '/api/categories')).json().categories;
+    expect(cats.every((c: { color: string }) => /^#[0-9a-f]{6}$/.test(c.color))).toBe(true);
+    expect((await call('PATCH', '/api/categories/cartes', { color: 'vermell' })).statusCode).toBe(400);
+    expect((await call('PATCH', '/api/categories/cartes', { color: '#B91C1C', name: 'Correspondència' })).json().category).toMatchObject({ color: '#b91c1c', name: 'Correspondència' });
+    const order = cats.map((c: { id: string }) => c.id).reverse();
+    await call('PUT', '/api/categories/order', { ids: order });
+    expect((await call('GET', '/api/categories')).json().categories.map((c: { id: string }) => c.id)).toEqual(order);
+  });
+
+  it('desa preferències validades', async () => {
+    expect((await call('GET', '/api/prefs')).json().prefs).toMatchObject({ theme: 'auto', view: 'grid', shareHours: 24 });
+    const res = await call('PUT', '/api/prefs', { theme: 'dark', view: 'raro', shareHours: 72, showTags: false });
+    expect(res.json().prefs).toMatchObject({ theme: 'dark', view: 'grid', shareHours: 72, showTags: false });
+    expect((await call('GET', '/api/prefs')).json().prefs).toMatchObject({ theme: 'dark', shareHours: 72 });
+  });
 });

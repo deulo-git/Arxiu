@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate, useOutletContext } from 'react-router';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router';
+import { CategoriesPanel, PeoplePanel, TagsPanel } from './settings/Panels.tsx';
+import { PrefsPanel } from './settings/PrefsPanel.tsx';
 import { api, type SessionInfo } from '../api.ts';
 import { Icon } from '../components/Icon.tsx';
 import { isNewPasswordOk } from '../components/PasswordFields.tsx';
@@ -7,26 +9,53 @@ import { PASSWORD_RULES_MESSAGE } from '../../shared/password.ts';
 import { relativeTime } from '../lib/format.ts';
 import { useLibrary, useSession, useToast } from '../state.tsx';
 
+const TABS = [
+  { id: 'categories', label: 'Categories', icon: 'folder' },
+  { id: 'etiquetes', label: 'Etiquetes', icon: 'tag' },
+  { id: 'persones', label: 'Persones', icon: 'users' },
+  { id: 'preferencies', label: 'Preferències', icon: 'gear' },
+  { id: 'seguretat', label: 'Seguretat i compte', icon: 'lock' },
+] as const;
+
 export function Settings() {
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.find((t) => t.id === params.get('s'))?.id ?? 'categories';
+  const { logout } = useOutletContext<{ logout: () => void }>();
+
+  return (
+    <div className="settings">
+      <div>
+        <h1 className="page-title">Configuració</h1>
+        <p className="muted" style={{ fontSize: 14, marginTop: 2 }}>
+          Organitza el teu arxiu i ajusta com funciona.
+        </p>
+      </div>
+      <div className="tabs" role="tablist" aria-label="Seccions de la configuració">
+        {TABS.map((t) => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tabbtn${tab === t.id ? ' on' : ''}`} onClick={() => setParams({ s: t.id }, { replace: true })}>
+            <Icon name={t.icon} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'categories' && <CategoriesPanel />}
+      {tab === 'etiquetes' && <TagsPanel />}
+      {tab === 'persones' && <PeoplePanel />}
+      {tab === 'preferencies' && <PrefsPanel />}
+      {tab === 'seguretat' && <Security logout={logout} />}
+    </div>
+  );
+}
+
+function Security({ logout }: { logout: () => void }) {
   const { status, setUser } = useSession();
   const { files } = useLibrary();
-  const { logout } = useOutletContext<{ logout: () => void }>();
   const user = status!.user!;
   const toast = useToast();
   const navigate = useNavigate();
 
   return (
-    <div className="settings">
-      <div>
-        <h1 className="page-title">
-          <span className="desktop-only">Seguretat i compte</span>
-          <span className="mobile-only">Ajustos</span>
-        </h1>
-        <p className="muted" style={{ fontSize: 14, marginTop: 2 }}>
-          Gestiona l'accés al teu arxiu.
-        </p>
-      </div>
-
+    <>
       <ChangePassword />
 
       <section className="panel" style={{ gap: 18 }}>
@@ -92,7 +121,7 @@ export function Settings() {
       >
         Tanca la sessió
       </button>
-    </div>
+    </>
   );
 }
 

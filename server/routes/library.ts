@@ -3,9 +3,11 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import yazl from 'yazl';
 import { FALLBACK_CATEGORY } from '../../shared/categories.ts';
+import { colorAt, isColor } from '../../shared/colors.ts';
 import { fail, requireAuth } from '../app.ts';
 import { hashToken, newId, newToken } from '../auth/crypto.ts';
-import { tx } from '../db.ts';
+import { tx, type DB } from '../db.ts';
+import { loadPrefs } from './organize.ts';
 import { cleanFileName, contentDisposition, detectType, isIsoDate, isJpeg } from '../files/types.ts';
 
 interface FileRow {
@@ -26,11 +28,41 @@ interface CategoryRow {
   id: string;
   name: string;
   position: number;
+  color: string;
+}
+
+const categoryDto = (c: CategoryRow) => ({ id: c.id, name: c.name, color: c.color, fixed: c.id === FALLBACK_CATEGORY });
+
+/** Etiquetes o persones d'un conjunt de documents: { fileId → [id, …] }. */
+function linksFor(db: DB, table: 'file_tags' | 'file_people', col: 'tag_id' | 'person_id') {
+  const rows = db.prepare(`SELECT file_id, ${col} AS other FROM ${table}`).all() as { file_id: string; other: string }[];
+  const map = new Map<string, string[]>();
+  for (const r of rows) {
+    const list = map.get(r.file_id);
+    if (list) list.push(r.other);
+    else map.set(r.file_id, [r.other]);
+  }
+  return map;
+}
+
+/** Llegeix una llista d'ids (JSON o array) i descarta els que no existeixen. */
+function idList(db: DB, table: 'tags' | 'people', raw: unknown): string[] {
+  let list: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      list = JSON.parse(raw);
+    } catch {
+      list = [];
+    }
+  }
+  if (!Array.isArray(list)) return [];
+  const exists = db.prepare(`SELECT 1 FROM ${table} WHERE id = ?`);
+  return [...new Set(list.map(String))].filter((id) => exists.get(id)).slice(0, 50);
 }
 
 const MAX_THUMB_BYTES = 512 * 1024;
 
-function toFileDto(f: FileRow) {
+function toFileDto(f: FileRow, tags: string[] = [], people: string[] = []) {
   return {
     id: f.id,
     name: f.name,
@@ -43,6 +75,8 @@ function toFileDto(f: FileRow) {
     type: typeLabel(f),
     pages: f.pages,
     hasThumb: !!f.has_thumb,
+    tags,
+    people,
   };
 }
 
@@ -79,6 +113,24 @@ function slugify(name: string) {
 export async function libraryRoutes(app: FastifyInstance) {
   const { db, config, storage } = app.deps;
 
+  const fileDto = (f: FileRow) => {
+    const tags = db.prepare('SELECT tag_id FROM file_tags WHERE file_id = ?').all(f.id) as { tag_id: string }[];
+    const people = db.prepare('SELECT person_id FROM file_people WHERE file_id = ?').all(f.id) as { person_id: string }[];
+    return toFileDto(f, tags.map((t) => t.tag_id), people.map((p) => p.person_id));
+  };
+  const setLinks = (fileId: string, tags: string[] | null, people: string[] | null) => {
+    if (tags) {
+      db.prepare('DELETE FROM file_tags WHERE file_id = ?').run(fileId);
+      const ins = db.prepare('INSERT INTO file_tags (file_id, tag_id) VALUES (?, ?)');
+      tags.forEach((t) => ins.run(fileId, t));
+    }
+    if (people) {
+      db.prepare('DELETE FROM file_people WHERE file_id = ?').run(fileId);
+      const ins = db.prepare('INSERT INTO file_people (file_id, person_id) VALUES (?, ?)');
+      people.forEach((p) => ins.run(fileId, p));
+    }
+  };
+
   const getFile = (id: string) => db.prepare('SELECT * FROM files WHERE id = ?').get(id) as FileRow | undefined;
   const mustFile = (id: string) => getFile(id) ?? fail(404, 'Aquest document no existeix.');
   const categoryExists = (id: string | undefined) => !!id && !!db.prepare('SELECT 1 FROM categories WHERE id = ?').get(id);
@@ -100,28 +152,51 @@ export async function libraryRoutes(app: FastifyInstance) {
     /* ---------- Categories ---------- */
 
     api.get('/api/categories', async () => {
-      const rows = db.prepare('SELECT id, name, position FROM categories ORDER BY position, created_at').all() as unknown as CategoryRow[];
-      return { categories: rows.map((c) => ({ id: c.id, name: c.name, fixed: c.id === FALLBACK_CATEGORY })) };
+      const rows = db.prepare('SELECT id, name, position, color FROM categories ORDER BY position, created_at').all() as unknown as CategoryRow[];
+      return { categories: rows.map(categoryDto) };
     });
 
     api.post('/api/categories', async (request) => {
-      const name = String((request.body as { name?: unknown })?.name ?? '').trim().slice(0, 60);
+      const body = (request.body ?? {}) as { name?: unknown; color?: unknown };
+      const name = String(body.name ?? '').trim().slice(0, 60);
       if (!name) fail(400, 'Escriu un nom per a la categoria.');
       const exists = db.prepare('SELECT 1 FROM categories WHERE lower(name) = lower(?)').get(name);
       if (exists) fail(409, 'Ja hi ha una categoria amb aquest nom.');
       let id = slugify(name);
       while (categoryExists(id)) id = `${slugify(name)}-${newId().slice(0, 4).toLowerCase()}`;
       const pos = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM categories').get() as { p: number }).p;
-      db.prepare('INSERT INTO categories (id, name, position, created_at) VALUES (?, ?, ?, ?)').run(id, name, pos, new Date().toISOString());
-      return { category: { id, name, fixed: false } };
+      const n = (db.prepare('SELECT COUNT(*) AS n FROM categories').get() as { n: number }).n;
+      const color = isColor(body.color) ? body.color.toLowerCase() : colorAt(n);
+      db.prepare('INSERT INTO categories (id, name, position, color, created_at) VALUES (?, ?, ?, ?, ?)').run(id, name, pos, color, new Date().toISOString());
+      return { category: categoryDto({ id, name, position: pos, color }) };
+    });
+
+    // Reordena les categories: rep tots els ids en l'ordre desitjat.
+    api.put('/api/categories/order', async (request) => {
+      const ids = (request.body as { ids?: unknown } | undefined)?.ids;
+      if (!Array.isArray(ids)) fail(400, 'Ordre no vàlid.');
+      const upd = db.prepare('UPDATE categories SET position = ? WHERE id = ?');
+      tx(db, () => ids.map(String).filter(categoryExists).forEach((id, i) => upd.run(i, id)));
+      return { ok: true };
     });
 
     api.patch<{ Params: { id: string } }>('/api/categories/:id', async (request) => {
-      const name = String((request.body as { name?: unknown })?.name ?? '').trim().slice(0, 60);
-      if (!name) fail(400, 'Escriu un nom per a la categoria.');
-      if (!categoryExists(request.params.id)) fail(404, 'Aquesta categoria no existeix.');
-      db.prepare('UPDATE categories SET name = ? WHERE id = ?').run(name, request.params.id);
-      return { category: { id: request.params.id, name, fixed: request.params.id === FALLBACK_CATEGORY } };
+      const body = (request.body ?? {}) as { name?: unknown; color?: unknown };
+      const cur = db.prepare('SELECT id, name, position, color FROM categories WHERE id = ?').get(request.params.id) as CategoryRow | undefined;
+      if (!cur) fail(404, 'Aquesta categoria no existeix.');
+      let name = cur.name;
+      if (body.name !== undefined) {
+        name = String(body.name).trim().slice(0, 60);
+        if (!name) fail(400, 'Escriu un nom per a la categoria.');
+        if (db.prepare('SELECT 1 FROM categories WHERE lower(name) = lower(?) AND id != ?').get(name, cur.id)) fail(409, 'Ja hi ha una categoria amb aquest nom.');
+      }
+      let color = cur.color;
+      if (body.color !== undefined) {
+        if (!isColor(body.color)) fail(400, 'Color no vàlid.');
+        color = body.color.toLowerCase();
+      }
+      db.prepare('UPDATE categories SET name = ?, color = ? WHERE id = ?').run(name, color, cur.id);
+      return { category: categoryDto({ ...cur, name, color }) };
     });
 
     api.delete<{ Params: { id: string } }>('/api/categories/:id', async (request) => {
@@ -141,7 +216,9 @@ export async function libraryRoutes(app: FastifyInstance) {
     api.get('/api/files', async () => {
       const rows = db.prepare('SELECT * FROM files ORDER BY doc_date DESC, added_at DESC').all() as unknown as FileRow[];
       const used = rows.reduce((a, f) => a + f.size, 0);
-      return { files: rows.map(toFileDto), usedBytes: used };
+      const tags = linksFor(db, 'file_tags', 'tag_id');
+      const people = linksFor(db, 'file_people', 'person_id');
+      return { files: rows.map((f) => toFileDto(f, tags.get(f.id) ?? [], people.get(f.id) ?? [])), usedBytes: used };
     });
 
     api.post('/api/files', async (request) => {
@@ -186,7 +263,8 @@ export async function libraryRoutes(app: FastifyInstance) {
           `INSERT INTO files (id, name, category_id, doc_date, added_at, size, mime, kind, pages, sha256, has_thumb)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).run(id, name, category, date, new Date().toISOString(), statSync(storage.filePath(id)).size, type.mime, type.kind, pages, shaValue, thumb ? 1 : 0);
-        return { file: toFileDto(getFile(id)!) };
+        setLinks(id, idList(db, 'tags', fields.tags), idList(db, 'people', fields.people));
+        return { file: fileDto(getFile(id)!) };
       } finally {
         if (upload) await storage.remove(upload.tmp);
       }
@@ -205,8 +283,11 @@ export async function libraryRoutes(app: FastifyInstance) {
         if (!isIsoDate(body.date)) fail(400, 'Data no vàlida.');
         next.date = body.date;
       }
-      db.prepare('UPDATE files SET name = ?, category_id = ?, doc_date = ? WHERE id = ?').run(next.name, next.category, next.date, f.id);
-      return { file: toFileDto(getFile(f.id)!) };
+      tx(db, () => {
+        db.prepare('UPDATE files SET name = ?, category_id = ?, doc_date = ? WHERE id = ?').run(next.name, next.category, next.date, f.id);
+        setLinks(f.id, body.tags !== undefined ? idList(db, 'tags', body.tags) : null, body.people !== undefined ? idList(db, 'people', body.people) : null);
+      });
+      return { file: fileDto(getFile(f.id)!) };
     });
 
     api.delete<{ Params: { id: string } }>('/api/files/:id', async (request) => {
@@ -232,7 +313,7 @@ export async function libraryRoutes(app: FastifyInstance) {
 
     api.post<{ Params: { id: string } }>('/api/files/:id/shares', async (request) => {
       const f = mustFile(request.params.id);
-      const hours = Number((request.body as { hours?: unknown } | undefined)?.hours) || config.shareHours;
+      const hours = Number((request.body as { hours?: unknown } | undefined)?.hours) || loadPrefs(db).shareHours;
       if (hours < 1 || hours > 24 * 30) fail(400, 'Durada no vàlida.');
       const token = newToken(24);
       const now = Date.now();
