@@ -146,6 +146,17 @@ export const api = {
   files: () => get<{ files: FileItem[]; usedBytes: number }>('/api/files'),
   updateFile: (id: string, patch: Partial<Pick<FileItem, 'name' | 'category' | 'date' | 'tags' | 'people'>>) =>
     request<{ file: FileItem }>('PATCH', `/api/files/${id}`, patch),
+  putThumb: async (id: string, thumb: Blob, pages: number | null): Promise<{ file: FileItem }> => {
+    const res = await fetch(`/api/files/${id}/thumb${pages ? `?pages=${pages}` : ''}`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'x-arxiu': '1', 'content-type': 'image/jpeg' },
+      body: thumb,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(res.status, data.error || 'No s’ha pogut desar la miniatura.');
+    return data;
+  },
   deleteFile: (id: string) => request('DELETE', `/api/files/${id}`),
   shares: (id: string) => get<{ shares: Share[] }>(`/api/files/${id}/shares`),
   createShare: (id: string, hours: number) => post<{ share: Share }>(`/api/files/${id}/shares`, { hours }),

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, setUnauthorizedHandler, type Category, type FileItem, type Person, type Prefs, type Status, type Tag, type User } from './api.ts';
 import { DEFAULT_PREFS } from '../shared/prefs.ts';
 import { setDefaultSort } from './lib/filters.ts';
+import { makeThumbnail } from './lib/pdf.ts';
 import { Icon } from './components/Icon.tsx';
 
 /* ---------- Avisos ---------- */
@@ -120,6 +121,40 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     else root.setAttribute('data-theme', prefs.theme);
     setDefaultSort(prefs.sort);
   }, [prefs.theme, prefs.sort]);
+
+  // Genera, en segon pla, les miniatures dels documents que no en tenen (p. ex. els importats).
+  const thumbTried = useRef(new Set<string>());
+  const thumbBusy = useRef(false);
+  const [thumbTick, setThumbTick] = useState(0);
+  useEffect(() => {
+    if (!loaded || thumbBusy.current) return;
+    const todo = files.filter((f) => !f.hasThumb && !thumbTried.current.has(f.id) && f.size <= 80_000_000);
+    if (!todo.length) return;
+    thumbBusy.current = true;
+    let cancelled = false;
+    (async () => {
+      for (const f of todo) {
+        if (cancelled) break;
+        thumbTried.current.add(f.id);
+        try {
+          const res = await fetch(`/api/files/${f.id}/content`, { credentials: 'same-origin' });
+          if (!res.ok) continue;
+          const { thumb, pages } = await makeThumbnail(new File([await res.blob()], f.name, { type: f.mime }));
+          if (!thumb) continue;
+          const r = await api.putThumb(f.id, thumb, pages);
+          setFiles((prev) => prev.map((x) => (x.id === f.id ? r.file : x)));
+        } catch {
+          /* es reintentarà en una altra sessió */
+        }
+      }
+      thumbBusy.current = false;
+      if (!cancelled) setThumbTick((t) => t + 1);
+    })();
+    return () => {
+      cancelled = true;
+      thumbBusy.current = false;
+    };
+  }, [loaded, files, thumbTick]);
 
   const updatePrefs = useCallback(
     async (patch: Partial<Prefs>) => {

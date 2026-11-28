@@ -257,4 +257,19 @@ describe('documents', () => {
     expect(res.json().prefs).toMatchObject({ theme: 'dark', view: 'grid', shareHours: 72, showTags: false });
     expect((await call('GET', '/api/prefs')).json().prefs).toMatchObject({ theme: 'dark', shareHours: 72 });
   });
+
+  it("desa la miniatura d'un document sense (importat) i en llegeix les pàgines", async () => {
+    const file = (await upload({}, { name: 'Sense miniatura.pdf', data: PDF, type: 'application/pdf' })).json().file;
+    expect(file.hasThumb).toBe(false);
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9]);
+    const put = (body: Buffer, type: string) =>
+      app.inject({ method: 'PUT', url: `/api/files/${file.id}/thumb?pages=3`, payload: body, headers: { 'x-arxiu': '1', cookie, 'content-type': type } });
+    expect((await put(Buffer.from('no és un jpeg'), 'image/jpeg')).statusCode).toBe(415);
+    const ok = await put(jpeg, 'image/jpeg');
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().file).toMatchObject({ hasThumb: true, pages: 3 });
+    const got = await call('GET', `/api/files/${file.id}/thumb`);
+    expect(got.statusCode).toBe(200);
+    expect(got.rawPayload.equals(jpeg)).toBe(true);
+  });
 });

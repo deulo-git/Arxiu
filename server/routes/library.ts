@@ -302,6 +302,20 @@ export async function libraryRoutes(app: FastifyInstance) {
       return sendFile(reply, f, request.query.download ? 'attachment' : 'inline', 'private, max-age=86400');
     });
 
+    // La web genera la miniatura (només el navegador sap dibuixar PDF i imatges) i la desa aquí.
+    // Serveix per als documents que s'han importat sense passar per la pujada de la web.
+    api.addContentTypeParser('image/jpeg', { parseAs: 'buffer', bodyLimit: MAX_THUMB_BYTES }, (_req, body, done) => done(null, body));
+    api.put<{ Params: { id: string }; Querystring: { pages?: string } }>('/api/files/:id/thumb', async (request) => {
+      const f = mustFile(request.params.id);
+      const buf = request.body;
+      if (!Buffer.isBuffer(buf) || !isJpeg(buf)) fail(415, 'La miniatura ha de ser un JPEG.');
+      await writeFile(storage.thumbPath(f.id), buf);
+      const pagesNum = Number(request.query.pages);
+      const pages = Number.isInteger(pagesNum) && pagesNum > 0 && pagesNum < 100000 ? pagesNum : f.pages;
+      db.prepare('UPDATE files SET has_thumb = 1, pages = ? WHERE id = ?').run(pages, f.id);
+      return { file: fileDto(getFile(f.id)!) };
+    });
+
     api.get<{ Params: { id: string } }>('/api/files/:id/thumb', async (request, reply) => {
       const f = mustFile(request.params.id);
       const p = storage.thumbPath(f.id);
