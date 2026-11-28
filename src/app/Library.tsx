@@ -148,6 +148,11 @@ export function Library() {
             {countLabel(list.length)}
           </p>
         </div>
+        <div className="row-flex" style={{ gap: 8 }}>
+        <button className="btn btn-primary desktop-only" onClick={openUpload}>
+          <Icon name="upload" strokeWidth={2} />
+          Puja arxius
+        </button>
         {current && !current.fixed && (
           <div className="row-flex" style={{ gap: 4 }}>
             <button className="icon-btn" aria-label={`Canvia el nom de ${current.name}`} title="Canvia el nom" onClick={renameCat}>
@@ -158,6 +163,7 @@ export function Library() {
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Mòbil: cerca, categories en xips i període en desplegable */}
