@@ -31,6 +31,37 @@ function useActivityPing() {
   }, []);
 }
 
+/** Secció del menú lateral que es pot plegar; l'estat es recorda al navegador. */
+function useCollapsed(key: string) {
+  const k = `arxiu.fold.${key}`;
+  const [folded, setFolded] = useState(() => {
+    try {
+      return localStorage.getItem(k) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () =>
+    setFolded((f) => {
+      try {
+        localStorage.setItem(k, f ? '0' : '1');
+      } catch {
+        /* sense emmagatzematge */
+      }
+      return !f;
+    });
+  return [folded, toggle] as const;
+}
+
+function FoldTitle({ label, folded, onToggle }: { label: string; folded: boolean; onToggle: () => void }) {
+  return (
+    <button className="fold-title" aria-expanded={!folded} onClick={onToggle}>
+      <Icon name={folded ? 'next' : 'down'} size={16} strokeWidth={2} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
 export function Shell() {
   const { categories, files, usedBytes, setCategories, tags, people } = useLibrary();
   const { setUser } = useSession();
@@ -40,6 +71,9 @@ export function Shell() {
   const { filters } = useFilters();
   const [upload, setUpload] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [catFold, toggleCat] = useCollapsed('categories');
+  const [peopleFold, togglePeople] = useCollapsed('people');
+  const [tagFold, toggleTag] = useCollapsed('tags');
   const [newCat, setNewCat] = useState('');
   useActivityPing();
 
@@ -98,23 +132,17 @@ export function Shell() {
   return (
     <div className="shell">
       <nav className="sidebar" aria-label="Navegació principal">
-        <div className="brand" style={{ padding: '0 8px', gap: 10 }}>
+        <Link className="brand" to="/" aria-label="Arxiu: ves a l'inici" style={{ padding: '0 8px', gap: 10, color: 'inherit', textDecoration: 'none' }}>
           <BrandMark />
           <span>Arxiu</span>
-        </div>
+        </Link>
         <button className="btn btn-primary btn-block" onClick={() => setUpload(true)}>
           <Icon name="upload" strokeWidth={2} />
           Puja arxius
         </button>
         <div className="stack" style={{ gap: 2 }}>
-          <button className={`nav${inLibrary && filters.cat === 'all' ? ' on' : ''}`} onClick={() => goCat('all')}>
-            <Icon name="doc" />
-            Tots els documents<span className="n">{files.length}</span>
-          </button>
-        </div>
-        <div className="stack" style={{ gap: 2 }}>
           <div className="nav-heading">
-            <span>Categories</span>
+            <FoldTitle label="Categories" folded={catFold} onToggle={toggleCat} />
             <button
               className="icon-btn"
               style={{ width: 32, height: 32 }}
@@ -125,7 +153,7 @@ export function Shell() {
               <Icon name="plus" strokeWidth={2} />
             </button>
           </div>
-          {adding && (
+          {adding && !catFold && (
             <form className="row-flex" style={{ gap: 6, padding: '0 4px 8px' }} onSubmit={addCat}>
               <label className="sr" htmlFor="nc">
                 Nom de la categoria
@@ -144,7 +172,7 @@ export function Shell() {
               </button>
             </form>
           )}
-          {categories.map((c) => (
+          {!catFold && categories.map((c) => (
             <button key={c.id} className={`nav${inLibrary && filters.cat === c.id ? ' on' : ''}`} onClick={() => goCat(c.id)}>
               <span className="cat-ico" style={{ color: c.color, display: 'flex' }}>
                 <Icon name="folder" />
@@ -157,9 +185,9 @@ export function Shell() {
         {people.length > 0 && (
           <div className="stack" style={{ gap: 2 }}>
             <div className="nav-heading">
-              <span>Persones</span>
+              <FoldTitle label="Persones" folded={peopleFold} onToggle={togglePeople} />
             </div>
-            {people.map((p) => (
+            {!peopleFold && people.map((p) => (
               <button key={p.id} className={`nav${inLibrary && filters.person === p.id ? ' on' : ''}`} onClick={() => goFilter({ person: p.id })}>
                 <span className="avatar" style={{ background: p.color }} aria-hidden="true">
                   {p.name.slice(0, 1).toUpperCase()}
@@ -173,9 +201,9 @@ export function Shell() {
         {tags.length > 0 && (
           <div className="stack" style={{ gap: 2 }}>
             <div className="nav-heading">
-              <span>Etiquetes</span>
+              <FoldTitle label="Etiquetes" folded={tagFold} onToggle={toggleTag} />
             </div>
-            {tags.map((t) => (
+            {!tagFold && tags.map((t) => (
               <button key={t.id} className={`nav${inLibrary && filters.tag === t.id ? ' on' : ''}`} onClick={() => goFilter({ tag: t.id })}>
                 <span style={{ color: t.color, fontWeight: 700, width: 20, textAlign: 'center' }} aria-hidden="true">
                   #
