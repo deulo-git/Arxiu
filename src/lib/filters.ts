@@ -31,26 +31,41 @@ export interface Filters {
   to: string;
   q: string;
   sort: Sort;
-  tag: string;
-  person: string;
+  /** Etiquetes i persones triades; `*Mode` diu si el document ha de tenir-les totes o n'hi ha prou amb una. */
+  tags: string[];
+  tagMode: 'all' | 'any';
+  people: string[];
+  personMode: 'all' | 'any';
 }
 
+const list = (v: string | null) => (v ? v.split(',').filter(Boolean) : []);
+
+/** Categories triades (el filtre `cat` pot dur-ne diverses separades per comes). */
+export const catList = (cat: string) => (cat === 'all' ? [] : cat.split(',').filter(Boolean));
+
 /** Els filtres de la biblioteca viuen a la URL: així el botó enrere i el visor els conserven. */
-export function useFilters() {
-  const [params, setParams] = useSearchParams();
-  const filters: Filters = {
+function parseFilters(params: URLSearchParams): Filters {
+  return {
     cat: params.get('cat') || 'all',
     period: (params.get('periode') as Period) || 'all',
     from: params.get('des') || '',
     to: params.get('fins') || '',
     q: params.get('q') || '',
     sort: (params.get('ordre') as Sort) || defaultSort,
-    tag: params.get('etiqueta') || '',
-    person: params.get('persona') || '',
+    tags: list(params.get('etiquetes')),
+    tagMode: params.get('modeEt') === 'any' ? 'any' : 'all',
+    people: list(params.get('persones')),
+    personMode: params.get('modePer') === 'any' ? 'any' : 'all',
   };
+}
+
+export function useFilters() {
+  const [params, setParams] = useSearchParams();
+  const filters = parseFilters(params);
   const update = (patch: Partial<Filters>, opts: { replace?: boolean } = {}) => {
-    const next = { ...filters, ...patch };
-    setParams(toParams(next), { replace: opts.replace ?? true });
+    // Es parteix de la URL actual (no de l'últim render): així dos clics seguits no es trepitgen.
+    const current = parseFilters(new URLSearchParams(window.location.search));
+    setParams(toParams({ ...current, ...patch }), { replace: opts.replace ?? true });
   };
   return { filters, update, query: toParams(filters).toString() };
 }
@@ -63,8 +78,10 @@ export function toParams(f: Filters): URLSearchParams {
   if (f.period === 'custom' && f.to) p.set('fins', f.to);
   if (f.q) p.set('q', f.q);
   if (f.sort !== defaultSort) p.set('ordre', f.sort);
-  if (f.tag) p.set('etiqueta', f.tag);
-  if (f.person) p.set('persona', f.person);
+  if (f.tags.length) p.set('etiquetes', f.tags.join(','));
+  if (f.tags.length > 1 && f.tagMode === 'any') p.set('modeEt', 'any');
+  if (f.people.length) p.set('persones', f.people.join(','));
+  if (f.people.length > 1 && f.personMode === 'any') p.set('modePer', 'any');
   return p;
 }
 
@@ -84,21 +101,24 @@ export function applyFilters(files: FileItem[], f: Filters, extra?: (x: FileItem
     if (f.to) hi = f.to;
   }
   const q = f.q.trim().toLocaleLowerCase('ca');
-  const list = files.filter(
+  const cats = catList(f.cat);
+  const matchAll = (have: string[], want: string[], mode: 'all' | 'any') =>
+    want.length === 0 || (mode === 'all' ? want.every((w) => have.includes(w)) : want.some((w) => have.includes(w)));
+  const result = files.filter(
     (x) =>
-      (f.cat === 'all' || x.category === f.cat) &&
-      (!f.tag || x.tags.includes(f.tag)) &&
-      (!f.person || x.people.includes(f.person)) &&
+      (cats.length === 0 || cats.includes(x.category)) &&
+      matchAll(x.tags, f.tags, f.tagMode) &&
+      matchAll(x.people, f.people, f.personMode) &&
       x.date >= lo &&
       x.date <= hi &&
       (!q || `${x.name} ${extra?.(x) ?? ''}`.toLocaleLowerCase('ca').includes(q)),
   );
-  list.sort((a, b) => {
+  result.sort((a, b) => {
     if (f.sort === 'name') return a.name.localeCompare(b.name, 'ca');
     const d = a.date.localeCompare(b.date) || a.addedAt.localeCompare(b.addedAt);
     return f.sort === 'old' ? d : -d;
   });
-  return list;
+  return result;
 }
 
 export function useFilteredFiles(files: FileItem[], extra?: (x: FileItem) => string) {

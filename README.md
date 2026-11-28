@@ -15,6 +15,7 @@ Implementa el disseny «Arxiu — prototip» (escriptori i mòbil) amb el sistem
 - **Pujada guiada**: per a cada arxiu has de decidir el **nom**, la **categoria** (o crear-ne una de nova allà mateix), les etiquetes i les persones. Es pot aplicar la mateixa tria a tots els arxius d'una tanda.
 - **Configuració extensa**: categories (nom, color, ordre), etiquetes i persones (nom, color, notes, fusionar, eliminar), tema clar/fosc, vista, ordre i agrupació per defecte, opcions de pujada, durada dels enllaços i seguretat.
 - **Aplicació instal·lable (PWA)** per al mòbil: icona pròpia, pantalla completa i drecera «Puja un document». Cal servir-la amb https o des de localhost.
+- **Filtres avançats**: panell «Filtres» amb selecció múltiple de categories, persones i etiquetes (amb comptadors), mode «totes»/«qualsevol», filtres actius que es treuen d'un en un i tot guardat a la URL.
 - **Biblioteca** agrupada per mesos, en quadrícula o llista, amb cerca, ordenació, categories (crear, reanomenar, eliminar) i filtres per període o rang de dates. Els filtres es guarden a la URL.
 - **Visor** de PDF (pàgina a pàgina, amb pdf.js) i d'imatges, amb navegació anterior/següent, canvi de categoria i data, descàrrega i eliminació.
 - **Compartir** amb enllaços temporals (24 h) que es poden revocar.

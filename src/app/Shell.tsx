@@ -114,8 +114,8 @@ export function Shell() {
     f.tags.forEach((t) => tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1));
     f.people.forEach((p) => personCounts.set(p, (personCounts.get(p) ?? 0) + 1));
   });
-  const goFilter = (patch: { tag?: string; person?: string }) =>
-    navigate({ pathname: '/', search: toParams({ ...filters, cat: 'all', tag: '', person: '', ...patch }).toString() });
+  const goFilter = (patch: { tags?: string[]; people?: string[] }) =>
+    navigate({ pathname: '/', search: toParams({ ...filters, cat: 'all', tags: [], people: [], ...patch }).toString() });
 
   const goCat = (cat: string) => {
     const p = toParams({ ...filters, cat });
@@ -217,7 +217,7 @@ export function Shell() {
               <FoldTitle label="Persones" folded={peopleFold} onToggle={togglePeople} />
             </div>
             {!peopleFold && people.map((p) => (
-              <button key={p.id} className={`nav${inLibrary && filters.person === p.id ? ' on' : ''}`} onClick={() => goFilter({ person: p.id })}>
+              <button key={p.id} className={`nav${inLibrary && filters.people.length === 1 && filters.people[0] === p.id ? ' on' : ''}`} onClick={() => goFilter({ people: [p.id] })}>
                 <span className="avatar" style={{ background: p.color }} aria-hidden="true">
                   {p.name.slice(0, 1).toUpperCase()}
                 </span>
@@ -233,7 +233,7 @@ export function Shell() {
               <FoldTitle label="Etiquetes" folded={tagFold} onToggle={toggleTag} />
             </div>
             {!tagFold && tags.map((t) => (
-              <button key={t.id} className={`nav${inLibrary && filters.tag === t.id ? ' on' : ''}`} onClick={() => goFilter({ tag: t.id })}>
+              <button key={t.id} className={`nav${inLibrary && filters.tags.length === 1 && filters.tags[0] === t.id ? ' on' : ''}`} onClick={() => goFilter({ tags: [t.id] })}>
                 <span style={{ color: t.color, fontWeight: 700, width: 20, textAlign: 'center' }} aria-hidden="true">
                   #
                 </span>

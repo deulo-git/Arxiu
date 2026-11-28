@@ -6,6 +6,7 @@ import { countLabel, formatDate, formatSize } from '../lib/format.ts';
 import { groupFiles, periods, toParams, useFilteredFiles, type Period, type Sort } from '../lib/filters.ts';
 import { Pill } from '../components/Pill.tsx';
 import { useLibrary, useSearchText, useToast } from '../state.tsx';
+import { ActiveFilters, activeCount, FilterPanel } from './FilterPanel.tsx';
 import type { ShellContext } from './Shell.tsx';
 
 type Mode = 'grid' | 'list';
@@ -46,10 +47,11 @@ export function Library() {
   const setMode = (m: Mode) => void updatePrefs({ view: m });
 
   const current = categories.find((c) => c.id === filters.cat);
-  const title = filters.cat === 'all' ? 'Tots els documents' : current?.name ?? 'Categoria';
+  const multiCat = filters.cat.includes(',');
+  const title = filters.cat === 'all' ? 'Tots els documents' : multiCat ? 'Diverses categories' : current?.name ?? 'Categoria';
   const groups = groupFiles(list, filters.sort, prefs.group, catName);
   const docLink = (f: FileItem) => ({ pathname: `/document/${f.id}`, search: query });
-  const clear = () => (setQ(''), update({ period: 'all', from: '', to: '', q: '', cat: 'all', tag: '', person: '' }));
+  const clear = () => (setQ(''), update({ period: 'all', from: '', to: '', q: '', cat: 'all', tags: [], people: [] }));
 
   async function renameCat() {
     if (!current) return;
@@ -77,39 +79,14 @@ export function Library() {
     }
   }
 
-  const filterSelects = (
-    <>
-      {tags.length > 0 && (
-        <>
-          <label className="sr" htmlFor="ft">
-            Filtra per etiqueta
-          </label>
-          <select id="ft" className="field" value={filters.tag} onChange={(e) => update({ tag: e.target.value })}>
-            <option value="">Etiqueta</option>
-            {tags.map((t) => (
-              <option key={t.id} value={t.id}>
-                # {t.name}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
-      {people.length > 0 && (
-        <>
-          <label className="sr" htmlFor="fp">
-            Filtra per persona
-          </label>
-          <select id="fp" className="field" value={filters.person} onChange={(e) => update({ person: e.target.value })}>
-            <option value="">Persona</option>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
-    </>
+  const [panel, setPanel] = useState(false);
+  const nFilters = activeCount(filters);
+  const filterButton = (
+    <button className={`btn btn-ghost filter-btn${panel || nFilters ? ' on' : ''}`} aria-expanded={panel} onClick={() => setPanel(!panel)}>
+      <Icon name="filter" />
+      Filtres
+      {nFilters > 0 && <span className="fcount">{nFilters}</span>}
+    </button>
   );
 
   return (
@@ -130,7 +107,7 @@ export function Library() {
           <option value="old">Més antics primer</option>
           <option value="name">Nom (A–Z)</option>
         </select>
-        {filterSelects}
+        {filterButton}
         <div className="seg" role="group" aria-label="Vista">
           <button className={`icon-btn${mode === 'grid' ? ' on' : ''}`} aria-label="Vista en quadrícula" aria-pressed={mode === 'grid'} onClick={() => setMode('grid')}>
             <Icon name="grid" />
@@ -182,7 +159,7 @@ export function Library() {
             </button>
           ))}
         </div>
-        {(tags.length > 0 || people.length > 0) && <div className="filter-selects">{filterSelects}</div>}
+        {filterButton}
         <div className="row-flex" style={{ gap: 10 }}>
           <span className="muted" style={{ display: 'flex' }}>
             <Icon name="calendar" size={20} />
@@ -201,6 +178,9 @@ export function Library() {
           </select>
         </div>
       </div>
+
+      {panel && <FilterPanel filters={filters} update={update} onClose={() => setPanel(false)} />}
+      <ActiveFilters filters={filters} update={update} shown={list.length} onClear={clear} />
 
       <div className="periods desktop-only">
         <Icon name="calendar" />

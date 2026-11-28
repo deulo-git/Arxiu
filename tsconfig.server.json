@@ -13,5 +13,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["server", "shared", "tests"]
+  "include": ["server", "shared", "tests"],
+  "exclude": ["tests/filters.test.ts"]
 }
